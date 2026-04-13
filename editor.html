@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>찬송가 악보 편집기</title>
+    <link rel="stylesheet" href="presentation.css">
+    <link rel="stylesheet" href="notes.css">
+    <link rel="stylesheet" href="editor.css">
+</head>
+<body class="editor-body">
+    <div class="editor-shell">
+        <aside class="editor-sidebar">
+            <div class="editor-brand">
+                <div class="editor-eyebrow">Scoresentation</div>
+                <h1>가사·악보 편집기</h1>
+                <p>기획서 Phase 1 MVP: 음표 생성, 박자 순환, 삭제, JSON 내보내기</p>
+            </div>
+
+            <form id="editor-hymn-form" class="editor-hymn-form" autocomplete="off">
+                <label for="editor-hymn-number">곡 번호</label>
+                <div class="editor-row">
+                    <input id="editor-hymn-number" name="hymn" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="46">
+                    <button type="submit">불러오기</button>
+                </div>
+            </form>
+
+            <div class="editor-panel">
+                <div class="editor-panel-title">로컬 저장 곡</div>
+                <div id="editor-saved-list" class="editor-saved-list"></div>
+            </div>
+
+            <div class="editor-panel">
+                <div class="editor-panel-title">현재 곡</div>
+                <div id="editor-hymn-title" class="editor-hymn-title"></div>
+                <div id="editor-hymn-meta" class="editor-hymn-meta"></div>
+            </div>
+
+            <div class="editor-panel">
+                <div class="editor-panel-title">슬라이드</div>
+                <div id="editor-slide-list" class="editor-slide-list"></div>
+            </div>
+
+            <div class="editor-panel">
+                <div class="editor-panel-title">사용법</div>
+                <ul class="editor-help">
+                    <li><kbd>E</kbd> 편집 모드 토글</li>
+                    <li>호버로 회색 음표 미리보기</li>
+                    <li>클릭으로 생성 또는 박자 증가</li>
+                    <li><kbd>Ctrl</kbd>+클릭으로 박자 감소</li>
+                    <li>더블클릭으로 음표 삭제</li>
+                    <li>음자리표 오른쪽 조표 영역: 호버 후 클릭으로 조표 추가</li>
+                    <li>조표 영역에서 <kbd>Ctrl</kbd> 호버: 샵 미리보기</li>
+                    <li>조표 영역 더블클릭: 마지막 조표 삭제</li>
+                    <li>기존 음표 위에서 높낮이를 바꿔 호버 후 클릭하면 음정 변경</li>
+                    <li>기존 음표는 드래그해서 음높이 변경</li>
+                    <li>가사 줄은 직접 클릭해서 수정</li>
+                    <li>기존 음표 클릭: 인라인 메뉴 열기</li>
+                    <li>인라인 메뉴의 점 추가/점 제거로 점음표를 편집</li>
+                    <li><kbd>Ctrl</kbd> 또는 <kbd>Shift</kbd>와 함께 클릭: 같은 줄 선택에 음표 추가</li>
+                    <li>빈 오선지 드래그: 같은 줄의 여러 음표를 박스로 선택</li>
+                    <li>선택 후에는 음표 근처 메뉴에서 바로 적용/해제/취소</li>
+                    <li>연결선 선택은 한 줄씩만 유지되며, 다른 줄을 고르면 이전 선택은 정리</li>
+                    <li>연결선 선택 후 인라인 메뉴에서 바로 묶기 또는 해제</li>
+                    <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>: 실행 취소, <kbd>Ctrl</kbd>+<kbd>Y</kbd>: 다시 실행</li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="editor-main">
+            <header class="editor-toolbar">
+                <div class="editor-toolbar-left">
+                    <button id="editor-toggle-mode" type="button">편집 모드 켜짐</button>
+                    <button id="editor-toggle-dot" type="button" hidden>점음표 모드 꺼짐</button>
+                    <button id="editor-toggle-beam" type="button" hidden>연결선 모드 꺼짐</button>
+                    <button id="editor-apply-beam" type="button" hidden>연결선 적용</button>
+                    <button id="editor-clear-beam" type="button" hidden>연결선 해제</button>
+                    <button id="editor-prev-slide" type="button">이전 슬라이드</button>
+                    <button id="editor-next-slide" type="button">다음 슬라이드</button>
+                </div>
+                <div class="editor-toolbar-right">
+                    <button id="editor-save-hymn" type="button">곡 저장</button>
+                    <button id="editor-delete-saved" type="button">저장본 삭제</button>
+                    <button id="editor-import-json" type="button">JSON 가져오기</button>
+                    <button id="editor-undo" type="button">실행 취소</button>
+                    <button id="editor-redo" type="button">다시 실행</button>
+                    <button id="editor-export-json" type="button">JSON 복사</button>
+                    <button id="editor-download-json" type="button">JSON 다운로드</button>
+                </div>
+            </header>
+
+            <div id="editor-status" class="editor-status"></div>
+
+            <input id="editor-import-file" type="file" accept="application/json,.json" hidden>
+
+            <section class="editor-canvas-wrap">
+                <article id="editor-canvas" class="editor-canvas"></article>
+            </section>
+
+            <section class="editor-export-panel">
+                <div class="editor-panel-title">내보내기</div>
+                <textarea id="editor-export-output" spellcheck="false"></textarea>
+            </section>
+        </main>
+    </div>
+
+    <script src="demo-hymn-data.js"></script>
+    <script src="storage.js"></script>
+    <script src="notes.js"></script>
+    <script src="editor.js"></script>
+</body>
+</html>

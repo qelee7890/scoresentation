@@ -1,0 +1,121 @@
+/* 악보 (Notes) 스타일 - Bravura SMuFL 폰트 버전 */
+
+/* Bravura 폰트 로드 (GitHub Raw) */
+@font-face {
+    font-family: 'Bravura';
+    src: url('https://raw.githubusercontent.com/steinbergmedia/bravura/master/redist/woff/Bravura.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Bravura Text';
+    src: url('https://raw.githubusercontent.com/steinbergmedia/bravura/master/redist/woff/BravuraText.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* 줄 컨테이너 - 오선지 + 가사 */
+.lyrics-line-with-notes {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: -30px;  /* 악보줄 사이 간격 축소 */
+    overflow: visible;  /* 음표가 잘리지 않도록 */
+    position: relative;
+}
+
+/* 오선지 컨테이너 */
+.notation-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;  /* 악보-가사 간격 증가 */
+    overflow: visible;  /* 음표가 잘리지 않도록 */
+    padding-left: 0;    /* SVG margin-left로 정렬 처리 */
+}
+
+.notation-svg {
+    display: block;
+    overflow: visible;  /* SVG 영역 밖의 요소도 표시 */
+}
+
+/* SVG 내 Bravura 텍스트 기본 스타일 */
+.notation-svg text {
+    font-family: 'Bravura', 'Bravura Text', sans-serif;
+}
+
+/* 가사 줄 텍스트 */
+.lyrics-line-text {
+    display: inline-block;
+    text-align: center;
+}
+
+/* 글자 측정용 (렌더링 시 임시 사용) */
+.char-measure {
+    display: inline;
+}
+
+/* 편집 모드 스타일 */
+.notation-container.edit-mode {
+    cursor: crosshair;
+}
+
+.notation-container.edit-mode:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* 음표 선택 상태 */
+.note-selected {
+    filter: drop-shadow(0 0 3px var(--color-accent));
+}
+
+/* 음표 호버 효과 */
+.note-hover {
+    opacity: 0.5;
+}
+
+/* 드래그 중 음표 */
+.note-dragging {
+    opacity: 0.7;
+    cursor: grabbing;
+}
+
+/* 음표 정보가 없는 줄 (오선지 없음) */
+.lyrics-line-text:only-child {
+    margin-top: 0;
+}
+
+/* 한글 가사 내 악보가 있는 경우 줄 간격 조정 */
+.lyrics-korean .lyrics-line-with-notes {
+    line-height: 1.1;  /* 1.4 * 0.6 ≈ 0.84, 최소 1.1로 유지 */
+}
+
+/* 악보가 포함된 가사 영역 전체 스타일 */
+.lyrics-content.with-notes .lyrics-korean {
+    line-height: 1.0;  /* 1.2 * 0.6 = 0.72, 최소 1.0으로 유지 */
+}
+
+/* 반응형 - 작은 화면에서 오선지 크기 조정 */
+@media (max-width: 768px) {
+    .notation-svg {
+        transform: scale(0.8);
+        transform-origin: center;
+    }
+
+    .lyrics-line-with-notes {
+        margin-bottom: 2px;  /* 3px * 0.6 ≈ 2px */
+    }
+}
+
+/* 프린트 시 스타일 */
+@media print {
+    .notation-svg line {
+        stroke: var(--color-gray) !important;
+    }
+
+    .notation-svg text {
+        fill: #000 !important;
+    }
+}

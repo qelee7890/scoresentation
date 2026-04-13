@@ -1,0 +1,284 @@
+/* 찬양 프레젠테이션 - 미니멀 디자인 */
+
+/* CSS 변수 */
+:root {
+    --color-gray: #999;
+    --color-accent: #FF6B35;
+}
+
+/* Presentation 폰트 */
+@font-face {
+    font-family: 'Presentation';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-7Bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+}
+
+/* 리셋 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Presentation', sans-serif;
+    background: #fff;
+}
+
+.hymn-picker {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.hymn-picker label {
+    font-size: 14px;
+    color: var(--color-gray);
+}
+
+.hymn-picker input,
+.hymn-picker button {
+    font: inherit;
+    border-radius: 999px;
+}
+
+.hymn-picker input {
+    width: 88px;
+    padding: 8px 12px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+}
+
+.hymn-picker button {
+    border: none;
+    padding: 8px 14px;
+    background: #000;
+    color: #fff;
+    cursor: pointer;
+}
+
+.hymn-picker input:disabled,
+.hymn-picker button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.hymn-picker-title {
+    max-width: 280px;
+    font-size: 14px;
+    color: var(--color-gray);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-status {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 20;
+    max-width: min(640px, calc(100vw - 40px));
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    color: #222;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.app-status.info {
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.app-status.warning {
+    border: 1px solid rgba(255, 107, 53, 0.35);
+}
+
+/* 프레젠테이션 컨테이너 */
+.presentation {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+}
+
+/* 슬라이드 */
+.slide {
+    width: 100%;
+    height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 8% 5% 5% 5%;
+    background: #fff;
+}
+
+.slide.active {
+    display: flex;
+}
+
+/* 배경 이미지 옵션 (사용 시) */
+.slide.with-background {
+    background-image: var(--bg-image);
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.slide.with-background::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, var(--bg-overlay-opacity, 0.7));
+}
+
+.slide.with-background .slide-content {
+    position: relative;
+    z-index: 1;
+}
+
+/* 슬라이드 콘텐츠 */
+.slide-content {
+    width: 100%;
+    max-width: 1200px;
+    text-align: center;
+}
+
+/* 제목 */
+.slide-title {
+    font-size: 32px;
+    color: var(--color-gray);
+    margin-bottom: 60px;
+    letter-spacing: -0.02em;
+}
+
+/* 가사 영역 */
+.lyrics-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+}
+
+/* 한글 가사 */
+.lyrics-korean {
+    font-size: 48px;
+    color: #000;
+    line-height: 1.6;
+    letter-spacing: -0.02em;
+}
+
+
+/* 영문 가사 (한글의 70%) */
+.lyrics-english {
+    font-size: 30px;
+    color: var(--color-gray);
+    line-height: 1.5;
+    letter-spacing: 0;
+    margin-top: 50px;
+}
+
+/* 절/후렴 표시 (상단 중앙) */
+.verse-badge {
+    display: inline-block;
+    font-size: 18px;
+    margin-bottom: 15px;
+    letter-spacing: 0.05em;
+    color: var(--color-gray);
+}
+
+.verse-badge .current {
+    color: var(--color-accent);
+}
+
+/* 타이틀 슬라이드 */
+.slide.title-slide .slide-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.hymn-number {
+    font-size: 120px;
+    color: #000;
+    font-weight: 400;
+    margin-bottom: 30px;
+}
+
+.hymn-title {
+    font-size: 56px;
+    color: #000;
+    letter-spacing: -0.02em;
+}
+
+.hymn-subtitle {
+    font-size: 28px;
+    color: var(--color-gray);
+    margin-top: 20px;
+}
+
+.hymn-meta {
+    font-size: 20px;
+    color: var(--color-gray);
+    margin-top: 40px;
+}
+
+/* 후렴 표시 */
+.chorus-badge {
+    display: inline-block;
+    font-size: 18px;
+    margin-bottom: 15px;
+    letter-spacing: 0.05em;
+    color: var(--color-gray);
+}
+
+.chorus-badge .current {
+    color: var(--color-accent);
+}
+
+/* 강조 (하이라이트) */
+.highlight {
+    background: var(--color-accent);
+    color: #fff;
+    padding: 2px 8px;
+}
+
+@media (max-width: 900px) {
+    .hymn-picker {
+        left: 12px;
+        right: 12px;
+        top: 12px;
+        border-radius: 20px;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+    }
+
+    .hymn-picker-title {
+        max-width: 100%;
+    }
+
+    .app-status {
+        left: 12px;
+        right: 12px;
+        bottom: 12px;
+        max-width: none;
+    }
+}
