@@ -167,6 +167,18 @@
         return window.HymnStorage ? window.HymnStorage.getSavedHymn(hymnId) : null;
     }
 
+    async function initStorage() {
+        if (!window.HymnStorage || typeof window.HymnStorage.init !== "function") {
+            return null;
+        }
+
+        try {
+            return await window.HymnStorage.init();
+        } catch (error) {
+            return null;
+        }
+    }
+
     function hasAvailableHymn(hymnId, hymnMap) {
         return !!(getSavedHymn(hymnId) || (hymnMap && hymnMap[hymnId]));
     }
@@ -247,7 +259,7 @@
             }
 
             if (formEl.dataset.datasetReady !== "true" && !hasAvailableHymn(hymnId, formEl._hymnMap)) {
-                setStatus("지금은 전체 곡 데이터셋을 읽지 못하고 있습니다. 로컬 저장본이나 46장만 열 수 있습니다.", "warning");
+                setStatus("지금은 전체 곡 데이터셋을 읽지 못하고 있습니다. 저장본이나 46장만 열 수 있습니다.", "warning");
                 return;
             }
 
@@ -265,6 +277,7 @@
         const requestedHymnId = getRequestedHymnId();
         let hymnMap = null;
 
+        await initStorage();
         bindPicker(false, null);
 
         try {
@@ -276,9 +289,9 @@
             updatePicker(data.hymn, true);
 
             if (getSavedHymn(resolvedId)) {
-                setStatus(`${resolvedId}장의 로컬 저장본을 프레젠테이션에 반영했습니다.`, "info");
+                setStatus(`${resolvedId}장의 저장본을 프레젠테이션에 반영했습니다.`, "info");
             } else {
-                setStatus("`hymns.json`을 읽지 못해 46장 샘플 데모로 실행했습니다. 로컬 저장본은 계속 불러올 수 있습니다.", "warning");
+                setStatus("`hymns.json`을 읽지 못해 46장 샘플 데모로 실행했습니다. 저장본은 계속 불러올 수 있습니다.", "warning");
             }
             return;
         }
@@ -289,7 +302,7 @@
         bindPicker(true, hymnMap);
 
         if (getSavedHymn(resolvedId)) {
-            setStatus(`${resolvedId}장의 로컬 저장본을 프레젠테이션에 반영했습니다.`, "info");
+            setStatus(`${resolvedId}장의 저장본을 프레젠테이션에 반영했습니다.`, "info");
             return;
         }
 

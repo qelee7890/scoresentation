@@ -26,7 +26,7 @@
             </form>
 
             <div class="editor-panel">
-                <div class="editor-panel-title">로컬 저장 곡</div>
+                <div class="editor-panel-title">저장 곡</div>
                 <div id="editor-saved-list" class="editor-saved-list"></div>
             </div>
 
@@ -55,6 +55,10 @@
                     <li>기존 음표 위에서 높낮이를 바꿔 호버 후 클릭하면 음정 변경</li>
                     <li>기존 음표는 드래그해서 음높이 변경</li>
                     <li>가사 줄은 직접 클릭해서 수정</li>
+                    <li>가사 줄에서 <kbd>Enter</kbd>: 현재 줄을 둘로 나누기</li>
+                    <li>가사 줄에서 <kbd>Ctrl</kbd>+<kbd>Enter</kbd>: 현재 위치 이후를 새 슬라이드로 보내기</li>
+                    <li>줄 시작에서 <kbd>Backspace</kbd>, 줄 끝에서 <kbd>Delete</kbd>: 인접 줄 합치기</li>
+                    <li>절 슬라이드 가사에 <code>&lt;후렴&gt;</code>을 넣으면 후렴 슬라이드로 이동</li>
                     <li>기존 음표 클릭: 인라인 메뉴 열기</li>
                     <li>인라인 메뉴의 점 추가/점 제거로 점음표를 편집</li>
                     <li><kbd>Ctrl</kbd> 또는 <kbd>Shift</kbd>와 함께 클릭: 같은 줄 선택에 음표 추가</li>
@@ -62,7 +66,10 @@
                     <li>선택 후에는 음표 근처 메뉴에서 바로 적용/해제/취소</li>
                     <li>연결선 선택은 한 줄씩만 유지되며, 다른 줄을 고르면 이전 선택은 정리</li>
                     <li>연결선 선택 후 인라인 메뉴에서 바로 묶기 또는 해제</li>
+                    <li>툴바의 슬라이드 추가/삭제로 현재 절 또는 후렴 슬라이드를 조정</li>
+                    <li>내용이 있는 슬라이드를 삭제하면 이전 슬라이드 뒤에 내용이 이어 붙는다</li>
                     <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>: 실행 취소, <kbd>Ctrl</kbd>+<kbd>Y</kbd>: 다시 실행</li>
+                    <li><code>python server.py</code>로 열면 저장/불러오기가 SQLite DB를 우선 사용합니다</li>
                 </ul>
             </div>
         </aside>
@@ -75,6 +82,8 @@
                     <button id="editor-toggle-beam" type="button" hidden>연결선 모드 꺼짐</button>
                     <button id="editor-apply-beam" type="button" hidden>연결선 적용</button>
                     <button id="editor-clear-beam" type="button" hidden>연결선 해제</button>
+                    <button id="editor-add-slide" type="button">슬라이드 추가</button>
+                    <button id="editor-remove-slide" type="button">슬라이드 삭제</button>
                     <button id="editor-prev-slide" type="button">이전 슬라이드</button>
                     <button id="editor-next-slide" type="button">다음 슬라이드</button>
                 </div>

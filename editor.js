@@ -2,6 +2,7 @@
     const DEFAULT_HYMN_ID = "46";
     const DURATION_ORDER = ["16", "8", "q", "h", "w"];
     const CLICK_DELAY_MS = 220;
+    const CHORUS_MARKER_PATTERN = /<\s*후렴\s*>/gi;
     const PITCH_LABEL_VERSION = 2;
     const LEGACY_PITCH_SHIFT_DOWN = {
         C4: "B3",
@@ -135,6 +136,52 @@
         return lines.join("<br/>");
     }
 
+    function getEditableLines(text) {
+        const lines = splitLines(text);
+        return lines.length > 0 ? lines : [""];
+    }
+
+    function getStoredLines(text) {
+        return text ? splitLines(text) : [];
+    }
+
+    function hasChorusMarker(text) {
+        return /<\s*후렴\s*>/i.test(String(text || ""));
+    }
+
+    function stripChorusMarker(text) {
+        return String(text || "")
+            .replace(CHORUS_MARKER_PATTERN, "")
+            .replace(/[ \t]{2,}/g, " ")
+            .replace(/(?:<br\s*\/?>\s*){2,}/gi, "<br/>")
+            .trim();
+    }
+
+    function countNotationChars(text, endOffset = text.length) {
+        let count = 0;
+
+        for (let i = 0; i < Math.min(endOffset, text.length); i++) {
+            const char = text[i];
+            if (char !== " " && char !== "\n") {
+                count += 1;
+            }
+        }
+
+        return count;
+    }
+
+    function cloneLineNotes(lineNotes) {
+        if (!Array.isArray(lineNotes)) {
+            return [];
+        }
+
+        return lineNotes.map((note) => (note ? { ...note } : null));
+    }
+
+    function joinStoredLines(lines) {
+        return lines.length > 0 ? joinLines(lines) : "";
+    }
+
     function hasNoteData(note) {
         return !!(note && note.pitch);
     }
@@ -204,6 +251,8 @@
                 toggleBeam: document.getElementById("editor-toggle-beam"),
                 applyBeam: document.getElementById("editor-apply-beam"),
                 clearBeam: document.getElementById("editor-clear-beam"),
+                addSlide: document.getElementById("editor-add-slide"),
+                removeSlide: document.getElementById("editor-remove-slide"),
                 prevSlide: document.getElementById("editor-prev-slide"),
                 nextSlide: document.getElementById("editor-next-slide"),
                 saveHymn: document.getElementById("editor-save-hymn"),
@@ -239,6 +288,7 @@
             this.pendingTextHistory = null;
             this.isRestoringHistory = false;
             this.savedHymnList = [];
+            this.skipNextEditableBlur = false;
         }
 
         async init() {
@@ -286,7 +336,7 @@
                 this.showSlide(parseInt(button.dataset.slideIndex, 10));
             });
 
-            this.dom.savedList.addEventListener("click", (event) => {
+            this.dom.savedList.addEventListener("click", async (event) => {
                 const loadButton = event.target.closest("[data-load-saved-hymn]");
                 if (loadButton) {
                     this.loadHymn(loadButton.dataset.loadSavedHymn);
@@ -295,7 +345,7 @@
 
                 const deleteButton = event.target.closest("[data-delete-saved-hymn]");
                 if (deleteButton) {
-                    this.deleteSavedHymn(deleteButton.dataset.deleteSavedHymn);
+                    await this.deleteSavedHymn(deleteButton.dataset.deleteSavedHymn);
                 }
             });
 
@@ -306,6 +356,8 @@
             this.dom.toggleBeam.addEventListener("click", () => this.toggleBeamMode());
             this.dom.applyBeam.addEventListener("click", () => this.applySelectedBeamGroup());
             this.dom.clearBeam.addEventListener("click", () => this.clearSelectedBeamGroup());
+            this.dom.addSlide.addEventListener("click", () => this.insertSlideAfterCurrent());
+            this.dom.removeSlide.addEventListener("click", () => this.removeCurrentSlide());
             this.dom.saveHymn.addEventListener("click", () => this.saveCurrentHymn());
             this.dom.deleteSaved.addEventListener("click", () => this.deleteCurrentSavedHymn());
             this.dom.importJson.addEventListener("click", () => this.dom.importFile.click());
@@ -402,6 +454,10 @@
         }
 
         async loadInitialHymn() {
+            if (window.HymnStorage && typeof window.HymnStorage.init === "function") {
+                await window.HymnStorage.init();
+            }
+
             this.refreshSavedHymnList();
 
             try {
@@ -532,7 +588,7 @@
             if (resolvedId !== hymnId && !hasSavedVersion) {
                 this.setStatus(`${hymnId}장은 사용할 수 없어 ${resolvedId}장으로 열었습니다.`, "warning");
             } else if (hasSavedVersion) {
-                this.setStatus(`${resolvedId}장의 로컬 저장본을 불러왔습니다.`);
+                this.setStatus(`${resolvedId}장의 저장본을 불러왔습니다.`);
             } else if (resolvedId === DEFAULT_HYMN_ID) {
                 this.setStatus("46장은 데모 악보 데이터가 포함되어 있습니다. 편집 후 JSON으로 내보낼 수 있습니다.");
             } else {
@@ -542,6 +598,7 @@
 
         buildSlides() {
             const hymn = this.data.hymn;
+            this.normalizeChorusSlides();
             const slides = [];
             const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
@@ -551,11 +608,14 @@
                     verse.notes = [];
                 }
 
-                const slideCount = Math.max(verse.korean.length, verse.english.length);
+                const slideCount = Math.max(verse.korean.length, verse.english.length, verse.notes.length);
                 for (let i = 0; i < slideCount; i++) {
                     slides.push({
                         id: `verse-${verseNum}-${i}`,
                         type: "verse",
+                        sectionType: "verse",
+                        sectionKey: verseNum,
+                        slideIndex: i,
                         badge: `${verseNum}절`,
                         label: `${verseNum}절 ${i + 1}번 슬라이드`,
                         korean: verse.korean[i] || "",
@@ -583,6 +643,9 @@
                     slides.push({
                         id: `chorus-${i}`,
                         type: "chorus",
+                        sectionType: "chorus",
+                        sectionKey: "chorus",
+                        slideIndex: i,
                         badge: "후렴",
                         label: `후렴 ${i + 1}번 슬라이드`,
                         korean: hymn.chorus.korean[i] || "",
@@ -659,7 +722,7 @@
             if (!slide) {
                 return;
             }
-            const koreanLines = splitLines(slide.korean);
+            const koreanLines = getEditableLines(slide.korean);
             const englishLines = splitLines(slide.english);
 
             this.dom.canvas.innerHTML = `
@@ -709,6 +772,735 @@
 
             this.renderAllLines();
             this.updateToolbarState();
+        }
+
+        ensureSectionArrays(section) {
+            if (!section || typeof section !== "object") {
+                return;
+            }
+
+            if (!Array.isArray(section.korean)) {
+                section.korean = [];
+            }
+            if (!Array.isArray(section.english)) {
+                section.english = [];
+            }
+            if (!Array.isArray(section.notes)) {
+                section.notes = [];
+            }
+        }
+
+        normalizeChorusSlides() {
+            const hymn = this.data && this.data.hymn;
+            if (!hymn) {
+                return;
+            }
+
+            if (!hymn.verses || typeof hymn.verses !== "object") {
+                hymn.verses = {};
+            }
+
+            if (!hymn.chorus || typeof hymn.chorus !== "object") {
+                hymn.chorus = { korean: [], english: [], notes: [] };
+            }
+
+            this.ensureSectionArrays(hymn.chorus);
+
+            const normalizedChorus = {
+                korean: [],
+                english: [],
+                notes: []
+            };
+            const chorusSlideCount = Math.max(hymn.chorus.korean.length, hymn.chorus.english.length, hymn.chorus.notes.length);
+            for (let i = 0; i < chorusSlideCount; i++) {
+                normalizedChorus.korean.push(stripChorusMarker(hymn.chorus.korean[i] || ""));
+                normalizedChorus.english.push(stripChorusMarker(hymn.chorus.english[i] || ""));
+                normalizedChorus.notes.push(hymn.chorus.notes[i] || null);
+            }
+            hymn.chorus = normalizedChorus;
+
+            const movedSlides = [];
+            const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+            verseNumbers.forEach((verseNum) => {
+                const verse = hymn.verses[verseNum];
+                if (!verse || typeof verse !== "object") {
+                    hymn.verses[verseNum] = { korean: [], english: [], notes: [] };
+                    return;
+                }
+
+                this.ensureSectionArrays(verse);
+                const slideCount = Math.max(verse.korean.length, verse.english.length, verse.notes.length);
+                const nextVerse = {
+                    korean: [],
+                    english: [],
+                    notes: []
+                };
+
+                for (let i = 0; i < slideCount; i++) {
+                    const rawKorean = verse.korean[i] || "";
+                    const rawEnglish = verse.english[i] || "";
+                    const cleanedKorean = stripChorusMarker(rawKorean);
+                    const cleanedEnglish = stripChorusMarker(rawEnglish);
+                    const notes = verse.notes[i] || null;
+
+                    if (hasChorusMarker(rawKorean) || hasChorusMarker(rawEnglish)) {
+                        movedSlides.push({
+                            korean: cleanedKorean,
+                            english: cleanedEnglish,
+                            notes
+                        });
+                        continue;
+                    }
+
+                    nextVerse.korean.push(cleanedKorean);
+                    nextVerse.english.push(cleanedEnglish);
+                    nextVerse.notes.push(notes);
+                }
+
+                hymn.verses[verseNum] = nextVerse;
+            });
+
+            movedSlides.forEach((slide) => {
+                hymn.chorus.korean.push(slide.korean);
+                hymn.chorus.english.push(slide.english);
+                hymn.chorus.notes.push(slide.notes);
+            });
+        }
+
+        getSelectionOffsetInEditable(editable) {
+            const selection = window.getSelection();
+            if (!selection || selection.rangeCount === 0 || !editable.contains(selection.anchorNode)) {
+                return (editable.textContent || "").length;
+            }
+
+            const range = selection.getRangeAt(0).cloneRange();
+            range.selectNodeContents(editable);
+            range.setEnd(selection.anchorNode, selection.anchorOffset);
+            return range.toString().length;
+        }
+
+        placeCaretAtOffset(editable, offset) {
+            const safeOffset = Math.max(0, Math.min(offset, (editable.textContent || "").length));
+            const selection = window.getSelection();
+            const range = document.createRange();
+            let remaining = safeOffset;
+            let placed = false;
+            const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                const textLength = node.textContent.length;
+                if (remaining <= textLength) {
+                    range.setStart(node, remaining);
+                    placed = true;
+                    break;
+                }
+                remaining -= textLength;
+            }
+
+            if (!placed) {
+                range.selectNodeContents(editable);
+                range.collapse(false);
+            } else {
+                range.collapse(true);
+            }
+
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+
+        focusEditableLine(role, lineIndex, offset = 0) {
+            window.requestAnimationFrame(() => {
+                const selector = role === "korean-line"
+                    ? `.editor-line-text[data-role="korean-line"][data-line-index="${lineIndex}"]`
+                    : `.editor-english-line[data-role="english-line"][data-line-index="${lineIndex}"]`;
+                const editable = this.dom.canvas.querySelector(selector);
+                if (!editable) {
+                    return;
+                }
+
+                editable.focus();
+                this.placeCaretAtOffset(editable, offset);
+            });
+        }
+
+        updateSlideTextLines(slide, role, nextLines) {
+            const safeLines = nextLines.length > 0 ? nextLines : [""];
+            const joined = joinLines(safeLines);
+
+            if (role === "korean-line") {
+                slide.korean = joined;
+                slide.koreanOwner[slide.koreanIndex] = joined;
+                return;
+            }
+
+            slide.english = joined;
+            slide.englishOwner[slide.englishIndex] = joined;
+        }
+
+        splitStoredText(text, lineIndex, offset, splitWithinLine) {
+            const lines = getEditableLines(text);
+            const safeIndex = Math.max(0, Math.min(lineIndex, Math.max(lines.length - 1, 0)));
+
+            if (splitWithinLine) {
+                const currentLine = lines[safeIndex] || "";
+                const beforeText = currentLine.slice(0, offset);
+                const afterText = currentLine.slice(offset);
+                const currentLines = [...lines.slice(0, safeIndex), beforeText];
+                const nextLines = [afterText, ...lines.slice(safeIndex + 1)];
+                return {
+                    currentText: joinLines(currentLines.length > 0 ? currentLines : [""]),
+                    nextText: joinLines(nextLines.length > 0 ? nextLines : [""])
+                };
+            }
+
+            const currentLines = lines.slice(0, safeIndex);
+            const nextLines = lines.slice(safeIndex);
+            return {
+                currentText: joinLines(currentLines.length > 0 ? currentLines : [""]),
+                nextText: joinLines(nextLines.length > 0 ? nextLines : [""])
+            };
+        }
+
+        normalizeNotesMapValue(notesMap) {
+            if (!notesMap || !isPlainObject(notesMap)) {
+                return null;
+            }
+
+            const normalized = {};
+            const lineKeys = Object.keys(notesMap).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+
+            lineKeys.forEach((lineKey) => {
+                const rawLine = Array.isArray(notesMap[lineKey]) ? notesMap[lineKey] : [];
+                const trimmedLine = trimTrailingNulls(rawLine).map((note) => note ? { ...note } : null);
+
+                if (trimmedLine.some(hasNoteData)) {
+                    normalized[lineKey] = trimmedLine;
+                }
+            });
+
+            return Object.keys(normalized).length > 0 ? normalized : null;
+        }
+
+        cleanupOrphanBeamGroupsInNotesMap(notesMap) {
+            if (!notesMap || !isPlainObject(notesMap)) {
+                return;
+            }
+
+            Object.keys(notesMap).forEach((lineKey) => {
+                const lineNotes = notesMap[lineKey];
+                if (!Array.isArray(lineNotes)) {
+                    return;
+                }
+
+                const groups = new Map();
+                lineNotes.forEach((note, index) => {
+                    if (!hasNoteData(note)) {
+                        return;
+                    }
+
+                    this.normalizeNoteBeamState(note);
+                    if (note.beamGroup === undefined) {
+                        return;
+                    }
+
+                    if (!groups.has(note.beamGroup)) {
+                        groups.set(note.beamGroup, []);
+                    }
+                    groups.get(note.beamGroup).push(index);
+                });
+
+                groups.forEach((indices) => {
+                    if (indices.length < 2) {
+                        indices.forEach((index) => {
+                            if (lineNotes[index]) {
+                                delete lineNotes[index].beamGroup;
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        splitNotesForNewSlide(slide, lineIndex, charOffset, splitWithinLine) {
+            const currentNotesMap = slide.notes && isPlainObject(slide.notes) ? slide.notes : {};
+            const current = {};
+            const next = {};
+            const lineKeys = Object.keys(currentNotesMap)
+                .map((key) => parseInt(key, 10))
+                .filter((value) => Number.isFinite(value))
+                .sort((a, b) => a - b);
+
+            lineKeys.forEach((key) => {
+                const lineNotes = cloneLineNotes(currentNotesMap[key]);
+
+                if (splitWithinLine) {
+                    if (key < lineIndex) {
+                        if (lineNotes.length > 0) {
+                            current[key] = lineNotes;
+                        }
+                        return;
+                    }
+
+                    if (key === lineIndex) {
+                        const beforeNotes = lineNotes.slice(0, charOffset);
+                        const afterNotes = lineNotes.slice(charOffset);
+                        if (beforeNotes.length > 0) {
+                            current[lineIndex] = beforeNotes;
+                        }
+                        if (afterNotes.length > 0) {
+                            next[0] = afterNotes;
+                        }
+                        return;
+                    }
+
+                    if (lineNotes.length > 0) {
+                        next[key - lineIndex] = lineNotes;
+                    }
+                    return;
+                }
+
+                if (key < lineIndex) {
+                    if (lineNotes.length > 0) {
+                        current[key] = lineNotes;
+                    }
+                    return;
+                }
+
+                if (lineNotes.length > 0) {
+                    next[key - lineIndex] = lineNotes;
+                }
+            });
+
+            this.cleanupOrphanBeamGroupsInNotesMap(current);
+            this.cleanupOrphanBeamGroupsInNotesMap(next);
+
+            slide.notes = this.normalizeNotesMapValue(current);
+            slide.notesOwner[slide.notesIndex] = slide.notes;
+
+            return this.normalizeNotesMapValue(next);
+        }
+
+        mergeNotesMaps(baseNotes, appendedNotes, lineOffset) {
+            const merged = {};
+
+            if (baseNotes && isPlainObject(baseNotes)) {
+                Object.keys(baseNotes).forEach((lineKey) => {
+                    merged[lineKey] = cloneLineNotes(baseNotes[lineKey]);
+                });
+            }
+
+            if (appendedNotes && isPlainObject(appendedNotes)) {
+                Object.keys(appendedNotes).forEach((lineKey) => {
+                    const shiftedKey = String(parseInt(lineKey, 10) + lineOffset);
+                    merged[shiftedKey] = cloneLineNotes(appendedNotes[lineKey]);
+                });
+            }
+
+            this.cleanupOrphanBeamGroupsInNotesMap(merged);
+            return this.normalizeNotesMapValue(merged);
+        }
+
+        slideHasContent(slide) {
+            if (!slide) {
+                return false;
+            }
+
+            const koreanText = stripChorusMarker(slide.korean).replace(/<br\s*\/?>/gi, "").trim();
+            const englishText = stripChorusMarker(slide.english).replace(/<br\s*\/?>/gi, "").trim();
+            const normalizedNotes = this.normalizeNotesMapValue(slide.notes);
+            return !!(koreanText || englishText || normalizedNotes);
+        }
+
+        replaceKoreanNoteLinesAfterSplit(slide, lineIndex, splitOffset) {
+            const currentNotesMap = slide.notes && isPlainObject(slide.notes) ? slide.notes : {};
+            const nextNotes = {};
+            const lineKeys = Object.keys(currentNotesMap)
+                .map((key) => parseInt(key, 10))
+                .filter((value) => Number.isFinite(value))
+                .sort((a, b) => a - b);
+
+            lineKeys.forEach((key) => {
+                const lineNotes = cloneLineNotes(currentNotesMap[key]);
+
+                if (key < lineIndex) {
+                    if (lineNotes.length > 0) {
+                        nextNotes[key] = lineNotes;
+                    }
+                    return;
+                }
+
+                if (key === lineIndex) {
+                    const beforeNotes = lineNotes.slice(0, splitOffset);
+                    const afterNotes = lineNotes.slice(splitOffset);
+                    if (beforeNotes.length > 0) {
+                        nextNotes[key] = beforeNotes;
+                    }
+                    if (afterNotes.length > 0) {
+                        nextNotes[key + 1] = afterNotes;
+                    }
+                    return;
+                }
+
+                if (lineNotes.length > 0) {
+                    nextNotes[key + 1] = lineNotes;
+                }
+            });
+
+            slide.notes = Object.keys(nextNotes).length > 0 ? nextNotes : null;
+            slide.notesOwner[slide.notesIndex] = slide.notes;
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+        }
+
+        replaceKoreanNoteLinesAfterMerge(slide, primaryLineIndex, secondaryLineIndex) {
+            const currentNotesMap = slide.notes && isPlainObject(slide.notes) ? slide.notes : {};
+            const nextNotes = {};
+            const lineKeys = Object.keys(currentNotesMap)
+                .map((key) => parseInt(key, 10))
+                .filter((value) => Number.isFinite(value))
+                .sort((a, b) => a - b);
+            const primaryNotes = cloneLineNotes(currentNotesMap[primaryLineIndex]);
+            const secondaryNotes = cloneLineNotes(currentNotesMap[secondaryLineIndex]);
+            const mergedNotes = [...primaryNotes, ...secondaryNotes];
+
+            lineKeys.forEach((key) => {
+                if (key < primaryLineIndex) {
+                    const lineNotes = cloneLineNotes(currentNotesMap[key]);
+                    if (lineNotes.length > 0) {
+                        nextNotes[key] = lineNotes;
+                    }
+                    return;
+                }
+
+                if (key === primaryLineIndex) {
+                    if (mergedNotes.length > 0) {
+                        nextNotes[key] = mergedNotes;
+                    }
+                    return;
+                }
+
+                if (key === secondaryLineIndex) {
+                    return;
+                }
+
+                const lineNotes = cloneLineNotes(currentNotesMap[key]);
+                if (lineNotes.length > 0) {
+                    nextNotes[key - 1] = lineNotes;
+                }
+            });
+
+            slide.notes = Object.keys(nextNotes).length > 0 ? nextNotes : null;
+            slide.notesOwner[slide.notesIndex] = slide.notes;
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+        }
+
+        rerenderCurrentSlideWithFocus(focusTarget) {
+            this.skipNextEditableBlur = true;
+            this.renderSlideList();
+            this.renderCurrentSlide();
+            this.renderExportJson();
+
+            if (focusTarget) {
+                this.focusEditableLine(focusTarget.role, focusTarget.lineIndex, focusTarget.offset);
+            }
+        }
+
+        splitEditableLine(editable) {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                return;
+            }
+
+            const role = editable.dataset.role;
+            const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+            const offset = this.getSelectionOffsetInEditable(editable);
+            const lines = role === "korean-line" ? getEditableLines(slide.korean) : getEditableLines(slide.english);
+            const currentLine = lines[lineIndex] || "";
+            const beforeText = currentLine.slice(0, offset);
+            const afterText = currentLine.slice(offset);
+            const nextLines = lines.slice();
+
+            nextLines.splice(lineIndex, 1, beforeText, afterText);
+            this.updateSlideTextLines(slide, role, nextLines);
+
+            if (role === "korean-line") {
+                this.replaceKoreanNoteLinesAfterSplit(slide, lineIndex, countNotationChars(beforeText));
+            }
+
+            this.rerenderCurrentSlideWithFocus({
+                role,
+                lineIndex: lineIndex + 1,
+                offset: 0
+            });
+            this.setStatus("가사 줄을 나눴습니다.");
+        }
+
+        mergeEditableLineWithPrevious(editable) {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                return;
+            }
+
+            const role = editable.dataset.role;
+            const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+            if (lineIndex <= 0) {
+                return;
+            }
+
+            const lines = role === "korean-line" ? getEditableLines(slide.korean) : getEditableLines(slide.english);
+            const previousLine = lines[lineIndex - 1] || "";
+            const currentLine = lines[lineIndex] || "";
+            const nextLines = lines.slice();
+            nextLines.splice(lineIndex - 1, 2, `${previousLine}${currentLine}`);
+            this.updateSlideTextLines(slide, role, nextLines);
+
+            if (role === "korean-line") {
+                this.replaceKoreanNoteLinesAfterMerge(slide, lineIndex - 1, lineIndex);
+            }
+
+            this.rerenderCurrentSlideWithFocus({
+                role,
+                lineIndex: lineIndex - 1,
+                offset: previousLine.length
+            });
+            this.setStatus("가사 줄을 합쳤습니다.");
+        }
+
+        mergeEditableLineWithNext(editable) {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                return;
+            }
+
+            const role = editable.dataset.role;
+            const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+            const lines = role === "korean-line" ? getEditableLines(slide.korean) : getEditableLines(slide.english);
+            if (lineIndex >= lines.length - 1) {
+                return;
+            }
+
+            const currentLine = lines[lineIndex] || "";
+            const nextLine = lines[lineIndex + 1] || "";
+            const nextLines = lines.slice();
+            nextLines.splice(lineIndex, 2, `${currentLine}${nextLine}`);
+            this.updateSlideTextLines(slide, role, nextLines);
+
+            if (role === "korean-line") {
+                this.replaceKoreanNoteLinesAfterMerge(slide, lineIndex, lineIndex + 1);
+            }
+
+            this.rerenderCurrentSlideWithFocus({
+                role,
+                lineIndex,
+                offset: currentLine.length
+            });
+            this.setStatus("가사 줄을 합쳤습니다.");
+        }
+
+        createSlideSignature(slideLike) {
+            return JSON.stringify({
+                type: slideLike.type || "",
+                korean: slideLike.korean || "",
+                english: slideLike.english || "",
+                notes: slideLike.notes || null
+            });
+        }
+
+        findSlideIndexBySignature(signature, preferredType) {
+            let index = this.slides.findIndex((slide) => slide.type === preferredType && this.createSlideSignature(slide) === signature);
+            if (index >= 0) {
+                return index;
+            }
+
+            index = this.slides.findIndex((slide) => this.createSlideSignature(slide) === signature);
+            return index;
+        }
+
+        rebuildSlidesAndRestoreSelection(options = {}) {
+            const {
+                targetSlideId = null,
+                targetSignature = null,
+                preferredType = null,
+                fallbackIndex = this.currentSlideIndex,
+                focusTarget = null
+            } = options;
+
+            if (focusTarget) {
+                this.skipNextEditableBlur = true;
+            }
+
+            this.buildSlides();
+            this.updateHeader();
+
+            if (this.slides.length === 0) {
+                this.currentSlideIndex = 0;
+                this.renderSlideList();
+                this.dom.canvas.innerHTML = "";
+                this.renderExportJson();
+                this.updateToolbarState();
+                return;
+            }
+
+            let nextIndex = -1;
+            if (targetSlideId) {
+                nextIndex = this.slides.findIndex((slide) => slide.id === targetSlideId);
+            }
+            if (nextIndex < 0 && targetSignature) {
+                nextIndex = this.findSlideIndexBySignature(targetSignature, preferredType);
+            }
+            if (nextIndex < 0) {
+                nextIndex = Math.max(0, Math.min(fallbackIndex, this.slides.length - 1));
+            }
+
+            this.currentSlideIndex = nextIndex;
+            this.renderSlideList();
+            this.renderCurrentSlide();
+            this.scheduleLayoutRefresh();
+            this.renderExportJson();
+
+            if (focusTarget) {
+                this.focusEditableLine(focusTarget.role, focusTarget.lineIndex, focusTarget.offset);
+            }
+        }
+
+        insertSlideAfterCurrent(newSlideData = null) {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                this.setStatus("추가할 기준 슬라이드가 없습니다.", "warning");
+                return;
+            }
+
+            if (!newSlideData) {
+                this.recordHistory();
+            }
+            const insertIndex = slide.slideIndex + 1;
+            slide.koreanOwner.splice(insertIndex, 0, newSlideData ? (newSlideData.korean || "") : "");
+            slide.englishOwner.splice(insertIndex, 0, newSlideData ? (newSlideData.english || "") : "");
+            slide.notesOwner.splice(insertIndex, 0, newSlideData ? (newSlideData.notes || null) : null);
+
+            const targetSlideId = slide.type === "chorus"
+                ? `chorus-${insertIndex}`
+                : `verse-${slide.sectionKey}-${insertIndex}`;
+
+            this.rebuildSlidesAndRestoreSelection({
+                targetSlideId,
+                fallbackIndex: this.currentSlideIndex + 1,
+                focusTarget: newSlideData && newSlideData.focusTarget
+                    ? newSlideData.focusTarget
+                    : {
+                        role: "korean-line",
+                        lineIndex: 0,
+                        offset: 0
+                    }
+            });
+
+            this.setStatus(slide.type === "chorus" ? "새 후렴 슬라이드를 추가했습니다." : "새 절 슬라이드를 추가했습니다.");
+        }
+
+        splitCurrentSlideToNextSlide(editable) {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                return;
+            }
+
+            const role = editable.dataset.role;
+            const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+            const offset = this.getSelectionOffsetInEditable(editable);
+
+            let currentKorean = slide.korean;
+            let nextKorean = "";
+            let currentEnglish = slide.english;
+            let nextEnglish = "";
+            let nextNotes = null;
+
+            if (role === "korean-line") {
+                const koreanSplit = this.splitStoredText(slide.korean, lineIndex, offset, true);
+                const englishSplit = this.splitStoredText(slide.english, lineIndex, 0, false);
+                currentKorean = koreanSplit.currentText;
+                nextKorean = koreanSplit.nextText;
+                currentEnglish = englishSplit.currentText;
+                nextEnglish = englishSplit.nextText;
+                nextNotes = this.splitNotesForNewSlide(slide, lineIndex, countNotationChars((getEditableLines(slide.korean)[lineIndex] || "").slice(0, offset)), true);
+            } else {
+                const koreanSplit = this.splitStoredText(slide.korean, lineIndex, 0, false);
+                const englishSplit = this.splitStoredText(slide.english, lineIndex, offset, true);
+                currentKorean = koreanSplit.currentText;
+                nextKorean = koreanSplit.nextText;
+                currentEnglish = englishSplit.currentText;
+                nextEnglish = englishSplit.nextText;
+                nextNotes = this.splitNotesForNewSlide(slide, lineIndex, 0, false);
+            }
+
+            slide.korean = currentKorean;
+            slide.koreanOwner[slide.koreanIndex] = currentKorean;
+            slide.english = currentEnglish;
+            slide.englishOwner[slide.englishIndex] = currentEnglish;
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+
+            this.insertSlideAfterCurrent({
+                korean: nextKorean,
+                english: nextEnglish,
+                notes: nextNotes,
+                focusTarget: {
+                    role,
+                    lineIndex: 0,
+                    offset: 0
+                }
+            });
+            this.setStatus("현재 위치부터 다음 슬라이드로 나눴습니다.");
+        }
+
+        removeCurrentSlide() {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                this.setStatus("삭제할 슬라이드가 없습니다.", "warning");
+                return;
+            }
+
+            if (this.slides.length <= 1) {
+                this.setStatus("마지막 남은 슬라이드는 삭제할 수 없습니다.", "warning");
+                return;
+            }
+
+            const hasContent = this.slideHasContent(slide);
+
+            if (hasContent && slide.slideIndex > 0) {
+                this.recordHistory();
+                const previousIndex = slide.slideIndex - 1;
+                const previousKoreanLines = getStoredLines(slide.koreanOwner[previousIndex] || "");
+                const currentKoreanLines = getStoredLines(slide.korean || "");
+                const previousEnglishLines = getStoredLines(slide.englishOwner[previousIndex] || "");
+                const currentEnglishLines = getStoredLines(slide.english || "");
+
+                slide.koreanOwner[previousIndex] = joinStoredLines([...previousKoreanLines, ...currentKoreanLines]);
+                slide.englishOwner[previousIndex] = joinStoredLines([...previousEnglishLines, ...currentEnglishLines]);
+                slide.notesOwner[previousIndex] = this.mergeNotesMaps(
+                    slide.notesOwner[previousIndex],
+                    slide.notes,
+                    previousKoreanLines.length
+                );
+            } else if (hasContent && slide.slideIndex === 0) {
+                this.setStatus("내용이 있는 첫 슬라이드는 앞 슬라이드가 없어 바로 삭제할 수 없습니다.", "warning");
+                return;
+            } else {
+                this.recordHistory();
+            }
+
+            slide.koreanOwner.splice(slide.slideIndex, 1);
+            slide.englishOwner.splice(slide.slideIndex, 1);
+            slide.notesOwner.splice(slide.slideIndex, 1);
+
+            const fallbackIndex = Math.max(0, this.currentSlideIndex - 1);
+            this.rebuildSlidesAndRestoreSelection({ fallbackIndex });
+            this.setStatus(
+                hasContent
+                    ? (slide.type === "chorus" ? "후렴 슬라이드를 삭제하고 내용을 이전 슬라이드에 이어 붙였습니다." : "절 슬라이드를 삭제하고 내용을 이전 슬라이드에 이어 붙였습니다.")
+                    : (slide.type === "chorus" ? "후렴 슬라이드를 삭제했습니다." : "절 슬라이드를 삭제했습니다.")
+            );
         }
 
         renderAllLines() {
@@ -1018,6 +1810,8 @@
             this.dom.toggleBeam.disabled = !this.isEditMode;
             this.dom.applyBeam.disabled = !this.isEditMode || !this.canApplyBeamSelection();
             this.dom.clearBeam.disabled = !this.isEditMode || !this.canClearBeamSelection();
+            this.dom.addSlide.disabled = !this.data || !this.data.hymn;
+            this.dom.removeSlide.disabled = this.slides.length <= 1;
             this.dom.saveHymn.disabled = !this.data || !this.data.hymn;
             this.dom.deleteSaved.disabled = !this.data || !this.data.hymn || !this.hasSavedHymn(this.data.hymn.number);
             this.dom.undo.disabled = this.undoStack.length === 0;
@@ -1171,9 +1965,48 @@
                 return;
             }
 
+            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                event.preventDefault();
+                this.recordHistory(this.pendingTextHistory || this.createHistorySnapshot());
+                this.pendingTextHistory = null;
+                this.splitCurrentSlideToNextSlide(editable);
+                return;
+            }
+
             if (event.key === "Enter") {
                 event.preventDefault();
-                editable.blur();
+                this.recordHistory(this.pendingTextHistory || this.createHistorySnapshot());
+                this.pendingTextHistory = null;
+                this.splitEditableLine(editable);
+                return;
+            }
+
+            if (event.key === "Backspace" && this.getSelectionOffsetInEditable(editable) === 0) {
+                const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+                if (lineIndex > 0) {
+                    event.preventDefault();
+                    this.recordHistory(this.pendingTextHistory || this.createHistorySnapshot());
+                    this.pendingTextHistory = null;
+                    this.mergeEditableLineWithPrevious(editable);
+                }
+                return;
+            }
+
+            if (event.key === "Delete") {
+                const offset = this.getSelectionOffsetInEditable(editable);
+                const textLength = (editable.textContent || "").length;
+                const lineIndex = parseInt(editable.dataset.lineIndex, 10);
+                const role = editable.dataset.role;
+                const slide = this.getCurrentSlide();
+                const lines = slide
+                    ? (role === "korean-line" ? getEditableLines(slide.korean) : getEditableLines(slide.english))
+                    : [];
+                if (offset === textLength && lineIndex < lines.length - 1) {
+                    event.preventDefault();
+                    this.recordHistory(this.pendingTextHistory || this.createHistorySnapshot());
+                    this.pendingTextHistory = null;
+                    this.mergeEditableLineWithNext(editable);
+                }
             }
         }
 
@@ -1229,6 +2062,11 @@
                 return;
             }
 
+            if (this.skipNextEditableBlur) {
+                this.skipNextEditableBlur = false;
+                return;
+            }
+
             const slide = this.getCurrentSlide();
             if (!slide) {
                 return;
@@ -1255,9 +2093,28 @@
                 slide.korean = joinLines(lines);
                 slide.koreanOwner[slide.koreanIndex] = slide.korean;
                 this.syncNotesToCurrentText(slide, lineIndex, editable);
+                const hadMarker = slide.type === "verse" && (hasChorusMarker(slide.korean) || hasChorusMarker(slide.english));
+                const targetSignature = this.createSlideSignature({
+                    type: hadMarker ? "chorus" : slide.type,
+                    korean: stripChorusMarker(slide.korean),
+                    english: stripChorusMarker(slide.english),
+                    notes: slide.notes || null
+                });
+
+                if (hadMarker) {
+                    this.rebuildSlidesAndRestoreSelection({
+                        targetSignature,
+                        preferredType: "chorus",
+                        fallbackIndex: this.currentSlideIndex
+                    });
+                    this.setStatus("`<후렴>` 마커를 감지해 현재 슬라이드를 후렴으로 옮겼습니다.");
+                    return;
+                }
+
+                slide.korean = stripChorusMarker(slide.korean);
+                slide.koreanOwner[slide.koreanIndex] = slide.korean;
                 this.renderSlideList();
-                this.renderLine(lineIndex);
-                this.updateToolbarState();
+                this.renderCurrentSlide();
                 this.renderExportJson();
                 this.setStatus("가사 줄을 수정했습니다.");
                 return;
@@ -1271,7 +2128,28 @@
                 lines[lineIndex] = value;
                 slide.english = joinLines(lines);
                 slide.englishOwner[slide.englishIndex] = slide.english;
+                const hadMarker = slide.type === "verse" && (hasChorusMarker(slide.korean) || hasChorusMarker(slide.english));
+                const targetSignature = this.createSlideSignature({
+                    type: hadMarker ? "chorus" : slide.type,
+                    korean: stripChorusMarker(slide.korean),
+                    english: stripChorusMarker(slide.english),
+                    notes: slide.notes || null
+                });
+
+                if (hadMarker) {
+                    this.rebuildSlidesAndRestoreSelection({
+                        targetSignature,
+                        preferredType: "chorus",
+                        fallbackIndex: this.currentSlideIndex
+                    });
+                    this.setStatus("`<후렴>` 마커를 감지해 현재 슬라이드를 후렴으로 옮겼습니다.");
+                    return;
+                }
+
+                slide.english = stripChorusMarker(slide.english);
+                slide.englishOwner[slide.englishIndex] = slide.english;
                 this.renderSlideList();
+                this.renderCurrentSlide();
                 this.renderExportJson();
                 this.setStatus("영문 가사 줄을 수정했습니다.");
             }
@@ -2647,40 +3525,7 @@
                 return;
             }
 
-            Object.keys(slide.notes).forEach((lineKey) => {
-                const lineNotes = slide.notes[lineKey];
-                if (!Array.isArray(lineNotes)) {
-                    return;
-                }
-
-                const groups = new Map();
-                lineNotes.forEach((note, index) => {
-                    if (!hasNoteData(note)) {
-                        return;
-                    }
-
-                    this.normalizeNoteBeamState(note);
-                    if (note.beamGroup === undefined) {
-                        return;
-                    }
-
-                    if (!groups.has(note.beamGroup)) {
-                        groups.set(note.beamGroup, []);
-                    }
-                    groups.get(note.beamGroup).push(index);
-                });
-
-                groups.forEach((indices) => {
-                    if (indices.length < 2) {
-                        indices.forEach((index) => {
-                            if (lineNotes[index]) {
-                                delete lineNotes[index].beamGroup;
-                            }
-                        });
-                    }
-                });
-            });
-
+            this.cleanupOrphanBeamGroupsInNotesMap(slide.notes);
             this.normalizeBeamSelection();
         }
 
@@ -2691,19 +3536,7 @@
                 return;
             }
 
-            const normalized = {};
-            const lineKeys = Object.keys(slide.notes).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-
-            lineKeys.forEach((lineKey) => {
-                const rawLine = Array.isArray(slide.notes[lineKey]) ? slide.notes[lineKey] : [];
-                const trimmedLine = trimTrailingNulls(rawLine).map((note) => note ? { ...note } : null);
-
-                if (trimmedLine.some(hasNoteData)) {
-                    normalized[lineKey] = trimmedLine;
-                }
-            });
-
-            slide.notes = Object.keys(normalized).length > 0 ? normalized : null;
+            slide.notes = this.normalizeNotesMapValue(slide.notes);
             slide.notesOwner[slide.notesIndex] = slide.notes;
         }
 
@@ -2738,42 +3571,56 @@
                 && !!a.existingNote === !!b.existingNote;
         }
 
-        saveCurrentHymn() {
+        async saveCurrentHymn() {
             if (!this.data || !this.data.hymn || !window.HymnStorage) {
                 this.setStatus("저장할 곡 데이터가 없습니다.", "warning");
                 return;
             }
 
-            window.HymnStorage.saveHymn(this.data.hymn);
-            this.refreshSavedHymnList();
-            this.updateHeader();
-            this.setStatus(`${this.data.hymn.number}장을 로컬 저장소에 저장했습니다.`);
+            try {
+                await window.HymnStorage.saveHymn(this.data.hymn);
+                this.refreshSavedHymnList();
+                this.updateHeader();
+                this.setStatus(`${this.data.hymn.number}장을 ${window.HymnStorage.getStorageLabel()}에 저장했습니다.`);
+            } catch (error) {
+                this.setStatus("저장 중 오류가 발생했습니다. 서버 상태를 확인해 주세요.", "warning");
+            }
         }
 
-        deleteSavedHymn(hymnNumber) {
-            if (!window.HymnStorage || !window.HymnStorage.deleteSavedHymn(hymnNumber)) {
+        async deleteSavedHymn(hymnNumber) {
+            if (!window.HymnStorage) {
                 this.setStatus("삭제할 저장본이 없습니다.", "warning");
                 return;
             }
 
-            const isCurrent = this.data && this.data.hymn && this.data.hymn.number === hymnNumber;
-            this.refreshSavedHymnList();
+            try {
+                const deleted = await window.HymnStorage.deleteSavedHymn(hymnNumber);
+                if (!deleted) {
+                    this.setStatus("삭제할 저장본이 없습니다.", "warning");
+                    return;
+                }
 
-            if (isCurrent) {
-                this.loadHymn(hymnNumber);
-                this.setStatus(`${hymnNumber}장의 로컬 저장본을 삭제하고 기본 곡으로 다시 불러왔습니다.`);
-                return;
+                const isCurrent = this.data && this.data.hymn && this.data.hymn.number === hymnNumber;
+                this.refreshSavedHymnList();
+
+                if (isCurrent) {
+                    this.loadHymn(hymnNumber);
+                    this.setStatus(`${hymnNumber}장의 저장본을 삭제하고 기본 곡으로 다시 불러왔습니다.`);
+                    return;
+                }
+
+                this.setStatus(`${hymnNumber}장의 저장본을 삭제했습니다.`);
+            } catch (error) {
+                this.setStatus("저장본 삭제 중 오류가 발생했습니다. 서버 상태를 확인해 주세요.", "warning");
             }
-
-            this.setStatus(`${hymnNumber}장의 로컬 저장본을 삭제했습니다.`);
         }
 
-        deleteCurrentSavedHymn() {
+        async deleteCurrentSavedHymn() {
             if (!this.data || !this.data.hymn) {
                 return;
             }
 
-            this.deleteSavedHymn(this.data.hymn.number);
+            await this.deleteSavedHymn(this.data.hymn.number);
         }
 
         extractImportedHymn(payload) {
@@ -2827,10 +3674,10 @@
                     hymn.chorus.notes = hymn.chorus.notes || [];
                 }
 
-                window.HymnStorage.saveHymn(hymn);
+                await window.HymnStorage.saveHymn(hymn);
                 this.refreshSavedHymnList();
                 this.loadHymn(hymn.number);
-                this.setStatus(`${hymn.number}장 JSON을 가져와 로컬 저장소에 반영했습니다.`);
+                this.setStatus(`${hymn.number}장 JSON을 가져와 저장소에 반영했습니다.`);
             } catch (error) {
                 this.setStatus("JSON 형식을 확인해 주세요. 한 곡 데이터 또는 export 형식만 가져올 수 있습니다.", "warning");
             } finally {

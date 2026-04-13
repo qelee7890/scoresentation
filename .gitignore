@@ -19,3 +19,11 @@ Desktop.ini
 
 # Exported hymn note files
 hymn-*-notes.json
+
+# Local database files
+data/
+*.db
+*.db-shm
+*.db-wal
+__pycache__/
+*.pyc
