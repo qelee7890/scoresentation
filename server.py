@@ -32,6 +32,14 @@ def json_error(handler: SimpleHTTPRequestHandler, status: int, message: str) -> 
     json_response(handler, status, {"error": message})
 
 
+def normalize_song_id(payload: Any, fallback: str = "") -> str:
+    if not isinstance(payload, dict):
+        return str(fallback or "").strip()
+
+    song_id = str(payload.get("id") or payload.get("number") or fallback or "").strip()
+    return song_id
+
+
 class HymnRepository:
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
@@ -64,6 +72,8 @@ class HymnRepository:
     def _row_to_item(self, row: sqlite3.Row) -> dict[str, Any]:
         hymn = json.loads(row["hymn_json"])
         return {
+            "id": normalize_song_id(hymn, row["number"]),
+            "category": hymn.get("category") or ("hymn" if str(row["number"]).isdigit() else "song"),
             "number": row["number"],
             "title": row["title"],
             "newNumber": row["new_number"],
@@ -80,7 +90,9 @@ class HymnRepository:
                 """
                 SELECT number, title, new_number, composer, key_signature, time_signature, hymn_json, updated_at
                 FROM saved_hymns
-                ORDER BY CAST(number AS INTEGER), number
+                ORDER BY CASE WHEN number GLOB '[0-9]*' THEN 0 ELSE 1 END,
+                         CAST(number AS INTEGER),
+                         number
                 """
             ).fetchall()
         return [self._row_to_item(row) for row in rows]
@@ -101,15 +113,20 @@ class HymnRepository:
         if not isinstance(hymn, dict):
             raise ValueError("곡 데이터는 JSON 객체여야 합니다.")
 
-        normalized_number = str(hymn.get("number") or number or "").strip()
-        if not normalized_number.isdigit():
-            raise ValueError("곡 번호는 숫자 문자열이어야 합니다.")
+        normalized_number = normalize_song_id(hymn, number)
+        if not normalized_number:
+            raise ValueError("곡 ID는 비어 있을 수 없습니다.")
 
         if str(number).strip() and str(number).strip() != normalized_number:
-            raise ValueError("요청 경로의 곡 번호와 본문 데이터의 곡 번호가 일치하지 않습니다.")
+            raise ValueError("요청 경로의 곡 ID와 본문 데이터의 곡 ID가 일치하지 않습니다.")
 
         hymn = json.loads(json.dumps(hymn, ensure_ascii=False))
-        hymn["number"] = normalized_number
+        hymn["id"] = normalized_number
+        hymn["category"] = hymn.get("category") or ("hymn" if normalized_number.isdigit() else "song")
+        if hymn["category"] == "hymn":
+            hymn["number"] = str(hymn.get("number") or normalized_number)
+        elif "number" in hymn and not hymn.get("number"):
+            hymn.pop("number", None)
 
         updated_at = utc_now_iso()
         payload = json.dumps(hymn, ensure_ascii=False)
@@ -190,7 +207,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/hymns/"):
             hymn_number = self._extract_hymn_number(parsed.path)
             if hymn_number is None:
-                json_error(self, HTTPStatus.BAD_REQUEST, "곡 번호가 올바르지 않습니다.")
+                json_error(self, HTTPStatus.BAD_REQUEST, "곡 ID가 올바르지 않습니다.")
                 return
 
             item = self.repository.get_hymn(hymn_number)
@@ -211,7 +228,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
 
         hymn_number = self._extract_hymn_number(parsed.path)
         if hymn_number is None:
-            json_error(self, HTTPStatus.BAD_REQUEST, "곡 번호가 올바르지 않습니다.")
+            json_error(self, HTTPStatus.BAD_REQUEST, "곡 ID가 올바르지 않습니다.")
             return
 
         try:
@@ -236,7 +253,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
 
         hymn_number = self._extract_hymn_number(parsed.path)
         if hymn_number is None:
-            json_error(self, HTTPStatus.BAD_REQUEST, "곡 번호가 올바르지 않습니다.")
+            json_error(self, HTTPStatus.BAD_REQUEST, "곡 ID가 올바르지 않습니다.")
             return
 
         deleted = self.repository.delete_hymn(hymn_number)
@@ -248,7 +265,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
 
     def _extract_hymn_number(self, path: str) -> str | None:
         hymn_number = unquote(path.rsplit("/", 1)[-1]).strip()
-        return hymn_number if hymn_number.isdigit() else None
+        return hymn_number if hymn_number else None
 
     def _read_json_body(self) -> Any:
         content_length = int(self.headers.get("Content-Length") or 0)

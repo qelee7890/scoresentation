@@ -39,13 +39,19 @@ class PresentationEngine {
 
     buildSlides() {
         const hymn = this.data.hymn;
+        const songRef = this.getSongReference(hymn);
+        const songTitle = this.getSongDisplayTitle(hymn);
 
         // 1. 타이틀 슬라이드
         this.slides.push({
             type: 'title',
             number: hymn.number,
+            id: this.getSongId(hymn),
+            category: this.getSongCategory(hymn),
+            reference: songRef,
             title: hymn.title,
             newNumber: hymn.newNumber,
+            subtitle: hymn.subtitle,
             newTitle: hymn.newTitle,
             meta: `${hymn.key} | ${hymn.timeSignature} | ${hymn.composer}`,
             timeSignature: hymn.timeSignature,
@@ -66,7 +72,7 @@ class PresentationEngine {
 
                 this.slides.push({
                     type: 'verse',
-                    title: `${hymn.number}장. ${hymn.title}`,
+                    title: songTitle,
                     korean: verse.korean[i] || '',
                     english: verse.english[i] || '',
                     verseNum: verseNum,
@@ -87,7 +93,7 @@ class PresentationEngine {
 
                     this.slides.push({
                         type: 'chorus',
-                        title: `${hymn.number}장. ${hymn.title}`,
+                        title: songTitle,
                         korean: chorus.korean[i] || '',
                         english: chorus.english[i] || '',
                         totalVerses: totalVerses,
@@ -118,15 +124,46 @@ class PresentationEngine {
         return text.replace(/<br\/>/g, '<br>');
     }
 
+    getSongId(song) {
+        return String((song && (song.id || song.number)) || '').trim();
+    }
+
+    getSongCategory(song) {
+        if (song && typeof song.category === 'string' && song.category.trim()) {
+            return song.category.trim();
+        }
+
+        return /^\d+$/.test(this.getSongId(song)) ? 'hymn' : 'song';
+    }
+
+    getSongReference(song) {
+        if (!song) return '';
+        if (this.getSongCategory(song) === 'hymn' && song.number) {
+            return `${song.number}장`;
+        }
+        return this.getSongId(song);
+    }
+
+    getSongDisplayTitle(song) {
+        const reference = this.getSongReference(song);
+        if (!song || !song.title) {
+            return reference;
+        }
+        return reference ? `${reference} ${song.title}` : song.title;
+    }
+
     createTitleSlide(slide) {
         const bgClass = this.options.useBackground ? 'with-background' : '';
+        const subtitle = slide.category === 'hymn' && slide.newNumber
+            ? `새찬송가 ${slide.newNumber}장`
+            : (slide.subtitle || '');
 
         return `
             <div class="slide title-slide ${bgClass}">
                 <div class="slide-content">
-                    <div class="hymn-number">${slide.number}</div>
+                    <div class="hymn-number">${slide.reference || slide.id || ''}</div>
                     <div class="hymn-title">${slide.title}</div>
-                    ${slide.newNumber ? `<div class="hymn-subtitle">새찬송가 ${slide.newNumber}장</div>` : ''}
+                    ${subtitle ? `<div class="hymn-subtitle">${subtitle}</div>` : ''}
                     <div class="hymn-meta">${slide.meta}</div>
                 </div>
             </div>

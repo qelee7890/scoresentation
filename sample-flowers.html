@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>꽃들도 샘플 페이지</title>
+    <link rel="stylesheet" href="sample-flowers.css">
+</head>
+<body class="sample-page">
+    <main class="sample-layout">
+        <section class="sample-hero">
+            <p class="sample-eyebrow">Scoresentation CCM Sample</p>
+            <h1>꽃들도</h1>
+            <p class="sample-copy">
+                `sample/꽃들도.png`를 기준으로 만든 CCM 샘플입니다.
+                프레젠테이션과 에디터에서 같은 곡 ID로 바로 열 수 있습니다.
+            </p>
+            <div class="sample-actions">
+                <a class="sample-button primary" href="./index.html?song=ccm-flowers">프레젠테이션 열기</a>
+                <a class="sample-button" href="./editor.html?song=ccm-flowers">에디터 열기</a>
+                <a class="sample-button ghost" href="./sample/%EA%BD%83%EB%93%A4%EB%8F%84.png" target="_blank" rel="noreferrer">원본 악보 보기</a>
+            </div>
+            <dl class="sample-meta">
+                <div>
+                    <dt>곡 ID</dt>
+                    <dd><code>ccm-flowers</code></dd>
+                </div>
+                <div>
+                    <dt>형식</dt>
+                    <dd>CCM</dd>
+                </div>
+                <div>
+                    <dt>조표</dt>
+                    <dd>4#</dd>
+                </div>
+                <div>
+                    <dt>박자</dt>
+                    <dd>4/4</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="sample-preview">
+            <div class="sample-card">
+                <div class="sample-card-title">원본 악보</div>
+                <img src="./sample/%EA%BD%83%EB%93%A4%EB%8F%84.png" alt="꽃들도 악보 샘플">
+            </div>
+            <div class="sample-card">
+                <div class="sample-card-title">샘플 구성</div>
+                <ul class="sample-notes">
+                    <li>절 1개, 후렴 1개 구조로 `ccm.json`에 추가했습니다.</li>
+                    <li>가사와 함께 편집 가능한 `notes` 샘플도 같이 포함했습니다.</li>
+                    <li>이 페이지는 빠른 확인용 진입점이고 실제 재생은 기존 `index.html`을 사용합니다.</li>
+                </ul>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

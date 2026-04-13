@@ -18,12 +18,21 @@
             </div>
 
             <form id="editor-hymn-form" class="editor-hymn-form" autocomplete="off">
-                <label for="editor-hymn-number">곡 번호</label>
+                <label for="editor-hymn-number">곡 ID</label>
                 <div class="editor-row">
-                    <input id="editor-hymn-number" name="hymn" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="46">
+                    <input id="editor-hymn-number" name="song" type="text" placeholder="46 또는 ccm-amazing-grace">
                     <button type="submit">불러오기</button>
                 </div>
             </form>
+
+            <div class="editor-panel">
+                <div class="editor-panel-title">곡 검색</div>
+                <form id="editor-search-form" class="editor-row" autocomplete="off">
+                    <input id="editor-search-input" class="editor-search-input" type="search" placeholder="제목 또는 가사 검색">
+                    <button type="submit">검색</button>
+                </form>
+                <div id="editor-search-results" class="editor-search-results"></div>
+            </div>
 
             <div class="editor-panel">
                 <div class="editor-panel-title">저장 곡</div>
@@ -55,6 +64,7 @@
                     <li>기존 음표 위에서 높낮이를 바꿔 호버 후 클릭하면 음정 변경</li>
                     <li>기존 음표는 드래그해서 음높이 변경</li>
                     <li>가사 줄은 직접 클릭해서 수정</li>
+                    <li>좌측 곡 검색에서 제목 또는 가사로 hymn/ccm을 최대 10개까지 찾기</li>
                     <li>가사 줄에서 <kbd>Enter</kbd>: 현재 줄을 둘로 나누기</li>
                     <li>가사 줄에서 <kbd>Ctrl</kbd>+<kbd>Enter</kbd>: 현재 위치 이후를 새 슬라이드로 보내기</li>
                     <li>줄 시작에서 <kbd>Backspace</kbd>, 줄 끝에서 <kbd>Delete</kbd>: 인접 줄 합치기</li>

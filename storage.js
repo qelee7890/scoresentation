@@ -47,8 +47,20 @@
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
     }
 
-    function isValidHymnNumber(value) {
-        return /^\d+$/.test(String(value || ""));
+    function getSongId(song) {
+        return String((song && (song.id || song.number)) || "").trim();
+    }
+
+    function getSongCategory(song) {
+        if (song && typeof song.category === "string" && song.category.trim()) {
+            return song.category.trim();
+        }
+
+        return /^\d+$/.test(getSongId(song)) ? "hymn" : "song";
+    }
+
+    function isValidSongId(value) {
+        return !!String(value || "").trim();
     }
 
     function shiftPitchLabelsInNotes(notes) {
@@ -74,6 +86,9 @@
             return hymn;
         }
 
+        hymn.id = getSongId(hymn);
+        hymn.category = getSongCategory(hymn);
+
         if (hymn.pitchLabelVersion === PITCH_LABEL_VERSION) {
             return hymn;
         }
@@ -95,7 +110,7 @@
     }
 
     function normalizeHymnRecord(hymn) {
-        if (!hymn || typeof hymn !== "object" || !isValidHymnNumber(hymn.number)) {
+        if (!hymn || typeof hymn !== "object" || !isValidSongId(getSongId(hymn))) {
             return null;
         }
 
@@ -124,10 +139,10 @@
             return normalized;
         }
 
-        Object.keys(store).forEach((number) => {
-            const entry = normalizeStoreEntry(store[number]);
+        Object.keys(store).forEach((songId) => {
+            const entry = normalizeStoreEntry(store[songId]);
             if (entry) {
-                normalized[number] = entry;
+                normalized[getSongId(entry.hymn)] = entry;
             }
         });
 
@@ -140,6 +155,21 @@
 
     function getStorageLabel() {
         return storageMode === "database" ? "데이터베이스" : "브라우저 저장소";
+    }
+
+    function compareSongIds(aId, bId) {
+        const aNumeric = /^\d+$/.test(aId);
+        const bNumeric = /^\d+$/.test(bId);
+
+        if (aNumeric && bNumeric) {
+            return parseInt(aId, 10) - parseInt(bId, 10);
+        }
+
+        if (aNumeric !== bNumeric) {
+            return aNumeric ? -1 : 1;
+        }
+
+        return aId.localeCompare(bId, "ko");
     }
 
     async function requestJson(url, options) {
@@ -180,7 +210,7 @@
         items.forEach((item) => {
             const normalized = normalizeRemoteItem(item);
             if (normalized) {
-                store[normalized.hymn.number] = normalized;
+                store[getSongId(normalized.hymn)] = normalized;
             }
         });
 
@@ -189,11 +219,11 @@
 
     async function syncLegacyLocalStore() {
         const localStore = normalizeStore(readStore());
-        const hymnNumbers = Object.keys(localStore);
+        const songIds = Object.keys(localStore);
 
-        for (const number of hymnNumbers) {
-            const localEntry = localStore[number];
-            const remoteEntry = activeStore[number];
+        for (const songId of songIds) {
+            const localEntry = localStore[songId];
+            const remoteEntry = activeStore[songId];
             const shouldUpload = !remoteEntry
                 || (
                     localEntry.updatedAt
@@ -205,7 +235,7 @@
             }
 
             try {
-                const payload = await requestJson(`${API_BASE}/${encodeURIComponent(number)}`, {
+                const payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
                     method: "PUT",
                     headers: {
                         "Content-Type": "application/json"
@@ -214,10 +244,10 @@
                 });
                 const normalized = normalizeRemoteItem(payload.item || payload);
                 if (normalized) {
-                    activeStore[number] = normalized;
+                    activeStore[songId] = normalized;
                 }
             } catch (error) {
-                console.warn("Failed to migrate legacy local hymn to database:", number, error);
+                console.warn("Failed to migrate legacy local hymn to database:", songId, error);
             }
         }
     }
@@ -270,15 +300,18 @@
 
     function listSavedHymns() {
         return Object.keys(activeStore)
-            .map((number) => {
-                const entry = activeStore[number];
+            .map((songId) => {
+                const entry = activeStore[songId];
                 if (!entry || !entry.hymn) {
                     return null;
                 }
 
                 return {
-                    number,
+                    id: getSongId(entry.hymn),
+                    number: entry.hymn.number || "",
+                    category: getSongCategory(entry.hymn),
                     title: entry.hymn.title || "",
+                    subtitle: entry.hymn.subtitle || "",
                     newNumber: entry.hymn.newNumber || "",
                     composer: entry.hymn.composer || "",
                     key: entry.hymn.key || "",
@@ -287,7 +320,7 @@
                 };
             })
             .filter(Boolean)
-            .sort((a, b) => parseInt(a.number, 10) - parseInt(b.number, 10));
+            .sort((a, b) => compareSongIds(a.id, b.id));
     }
 
     function getSavedHymn(number) {
@@ -313,7 +346,8 @@
         await ensureReady();
 
         if (storageMode === "database") {
-            const payload = await requestJson(`${API_BASE}/${encodeURIComponent(normalized.number)}`, {
+            const songId = getSongId(normalized);
+            const payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json"
@@ -324,18 +358,19 @@
             if (!entry) {
                 throw new Error("Invalid server response");
             }
-            activeStore[normalized.number] = entry;
-            return normalized.number;
+            activeStore[songId] = entry;
+            return songId;
         }
 
         const store = normalizeStore(readStore());
-        store[normalized.number] = {
+        const songId = getSongId(normalized);
+        store[songId] = {
             hymn: deepClone(normalized),
             updatedAt: new Date().toISOString()
         };
         writeStore(store);
         setActiveStore(store);
-        return normalized.number;
+        return songId;
     }
 
     async function deleteSavedHymn(number) {
@@ -370,10 +405,34 @@
     }
 
     function getAvailableHymnNumbers(baseMap) {
-        const savedNumbers = listSavedHymns().map((item) => item.number);
+        const savedNumbers = listSavedHymns().map((item) => item.id);
         const baseNumbers = baseMap ? Object.keys(baseMap) : [];
         return Array.from(new Set([...baseNumbers, ...savedNumbers]))
-            .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+            .sort(compareSongIds);
+    }
+
+    function listSavedSongs() {
+        return listSavedHymns();
+    }
+
+    function getSavedSong(songId) {
+        return getSavedHymn(songId);
+    }
+
+    function hasSavedSong(songId) {
+        return hasSavedHymn(songId);
+    }
+
+    function saveSong(song) {
+        return saveHymn(song);
+    }
+
+    function deleteSavedSong(songId) {
+        return deleteSavedHymn(songId);
+    }
+
+    function getAvailableSongIds(baseMap) {
+        return getAvailableHymnNumbers(baseMap);
     }
 
     setActiveStore(readStore());
@@ -381,11 +440,17 @@
     window.HymnStorage = {
         init,
         listSavedHymns,
+        listSavedSongs,
         getSavedHymn,
+        getSavedSong,
         hasSavedHymn,
+        hasSavedSong,
         saveHymn,
+        saveSong,
         deleteSavedHymn,
+        deleteSavedSong,
         getAvailableHymnNumbers,
+        getAvailableSongIds,
         getMode: () => storageMode,
         getStorageLabel
     };

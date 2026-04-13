@@ -107,6 +107,15 @@ body.editor-body {
     padding: 10px 14px;
 }
 
+.editor-search-input {
+    width: 100%;
+    font: inherit;
+    border: 1px solid var(--editor-border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 14px;
+}
+
 .editor-row button,
 .editor-toolbar button {
     border: none;
@@ -124,6 +133,12 @@ body.editor-body {
 .editor-saved-list {
     display: grid;
     gap: 8px;
+}
+
+.editor-search-results {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
 }
 
 .editor-saved-card {
@@ -149,6 +164,29 @@ body.editor-body {
     margin-top: 4px;
     font-size: 12px;
     color: var(--editor-muted);
+}
+
+.editor-search-card {
+    display: grid;
+    gap: 8px;
+}
+
+.editor-search-snippet {
+    display: block;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--editor-muted);
+}
+
+.editor-search-button {
+    width: 100%;
+    font: inherit;
+    border: 1px solid var(--editor-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--editor-text);
+    padding: 8px 10px;
+    cursor: pointer;
 }
 
 .editor-saved-actions {
