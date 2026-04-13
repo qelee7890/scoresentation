@@ -1,6 +1,6 @@
 (function () {
     const DEFAULT_HYMN_ID = "46";
-    const SONG_DATASET_FILES = ["hymns.json", "ccm.json"];
+    // DB를 primary source로 사용. hymns.json은 더 이상 로드하지 않음.
     const DURATION_ORDER = ["16", "8", "q", "h", "w"];
     const CLICK_DELAY_MS = 220;
     const CHORUS_MARKER_PATTERN = /<\s*후렴\s*>/gi;
@@ -369,15 +369,11 @@
     }
 
     function buildOptions(hymnNumber) {
-        const demoNumber = window.DEMO_HYMN_DATA && window.DEMO_HYMN_DATA.hymn
-            ? getSongId(window.DEMO_HYMN_DATA.hymn)
-            : DEFAULT_HYMN_ID;
-
         return {
             useBackground: false,
             backgroundImage: null,
             backgroundOpacity: 0.7,
-            showNotes: hymnNumber === demoNumber
+            showNotes: true
         };
     }
 
@@ -663,34 +659,38 @@
                 await window.HymnStorage.init();
             }
 
+            this.hymnMap = this.buildHymnMapFromStorage();
+            this.datasetReady = !!this.hymnMap;
+
             this.refreshSavedHymnList();
             this.updateSearchIndex();
 
-            try {
-                this.hymnMap = await this.loadHymnMap();
-                this.datasetReady = true;
-                this.updateSearchIndex();
-            } catch (error) {
-                this.datasetReady = false;
-                this.setStatus("곡 데이터 파일을 읽을 수 없어 46장 데모 편집기로 실행했습니다. 로컬 서버에서 열면 전체 곡을 편집할 수 있습니다.", "warning");
+            if (!this.datasetReady) {
+                this.setStatus("곡 데이터를 불러올 수 없습니다. 로컬 서버(server.py)를 실행해 주세요.", "warning");
             }
 
             this.loadHymn(getRequestedHymnId());
         }
 
-        async loadHymnMap() {
-            const datasets = await Promise.all(SONG_DATASET_FILES.map(async (path, index) => {
-                const response = await fetch(path, { cache: "no-store" });
-                if (response.status === 404 && index > 0) {
-                    return {};
-                }
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                return response.json();
-            }));
+        buildHymnMapFromStorage() {
+            if (!window.HymnStorage) {
+                return null;
+            }
 
-            return mergeSongMaps(...datasets);
+            const list = window.HymnStorage.listSavedHymns();
+            if (!list || list.length === 0) {
+                return null;
+            }
+
+            const map = {};
+            for (const item of list) {
+                const hymn = window.HymnStorage.getSavedHymn(item.id);
+                if (hymn) {
+                    map[item.id] = hymn;
+                }
+            }
+
+            return Object.keys(map).length > 0 ? map : null;
         }
 
         getSavedHymn(number) {
@@ -815,39 +815,23 @@
         }
 
         buildPresentationData(hymnId) {
-            const demoData = deepClone(window.DEMO_HYMN_DATA);
-            const savedHymn = this.getSavedHymn(hymnId);
-
-            if (savedHymn) {
-                const mergedSavedHymn = getSongId(savedHymn) === getSongId(demoData.hymn)
-                    ? deepMerge(savedHymn, demoData.hymn)
-                    : deepClone(savedHymn);
-
-                return {
-                    options: buildOptions(getSongId(mergedSavedHymn)),
-                    hymn: normalizeHymnPitchLabels(mergedSavedHymn)
-                };
-            }
-
             if (!this.hymnMap) {
-                demoData.hymn = normalizeHymnPitchLabels(demoData.hymn);
-                return demoData;
+                return { options: buildOptions(hymnId), hymn: {} };
             }
 
             const selectedHymn = this.hymnMap[hymnId] || this.hymnMap[DEFAULT_HYMN_ID];
-            const mergedHymn = getSongId(selectedHymn) === getSongId(demoData.hymn)
-                ? deepMerge(selectedHymn, demoData.hymn)
-                : deepClone(selectedHymn);
+            if (!selectedHymn) {
+                return { options: buildOptions(hymnId), hymn: {} };
+            }
 
             return {
-                options: buildOptions(getSongId(mergedHymn)),
-                hymn: normalizeHymnPitchLabels(mergedHymn)
+                options: buildOptions(getSongId(selectedHymn)),
+                hymn: normalizeHymnPitchLabels(deepClone(selectedHymn))
             };
         }
 
         loadHymn(hymnId) {
-            const hasSavedVersion = this.hasSavedHymn(hymnId);
-            const resolvedId = hasSavedVersion || (this.datasetReady && this.hymnMap && this.hymnMap[hymnId])
+            const resolvedId = (this.hymnMap && this.hymnMap[hymnId])
                 ? hymnId
                 : DEFAULT_HYMN_ID;
 
@@ -883,14 +867,10 @@
             this.refreshSavedHymnList();
             setRequestedHymnId(resolvedId);
 
-            if (resolvedId !== hymnId && !hasSavedVersion) {
+            if (resolvedId !== hymnId) {
                 this.setStatus(`${hymnId} 곡을 찾지 못해 ${getSongReference(this.data.hymn) || resolvedId}(으)로 열었습니다.`, "warning");
-            } else if (hasSavedVersion) {
-                this.setStatus(`${getSongReference(this.data.hymn) || resolvedId} 저장본을 불러왔습니다.`);
-            } else if (resolvedId === DEFAULT_HYMN_ID) {
-                this.setStatus("46장은 데모 악보 데이터가 포함되어 있습니다. 편집 후 JSON으로 내보낼 수 있습니다.");
             } else {
-                this.setStatus(`${getSongReference(this.data.hymn) || resolvedId}을(를) 불러왔습니다. 없는 음표는 직접 입력해 채워 넣을 수 있습니다.`);
+                this.setStatus(`${getSongReference(this.data.hymn) || resolvedId}을(를) 불러왔습니다.`);
             }
         }
 

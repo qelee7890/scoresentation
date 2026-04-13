@@ -20,9 +20,11 @@ Desktop.ini
 # Exported hymn note files
 hymn-*-notes.json
 
-# Local database files
-data/
-*.db
+# Legacy song data files (DB is primary source)
+hymns.json
+ccm.json
+
+# Local database temp files
 *.db-shm
 *.db-wal
 __pycache__/

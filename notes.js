@@ -73,7 +73,7 @@ class NotesEngine {
         // 조표 위치 (플랫/샵 순서, 오선지 기준 - 0=F5 top line, 4=E4 bottom line)
         // 음자리표와 동일한 좌표계 사용 (G4 = position 3)
         this.flatPositions = [1.5, 0, 2, 0.5, 2.5, 1, 3];       // Bb(시), Eb(미), Ab(라), Db(레), Gb(솔), Cb(도), Fb(파)
-        this.sharpPositions = [3, 1, 2.5, 0.5, 2, 0, 1.5];      // F#(파), C#(도), G#(솔), D#(레), A#(라), E#(미), B#(시)
+        this.sharpPositions = [-0.5, 1, -1, 0.5, 2, 0, 1.5];       // F#(파)=F5, C#(도)=C5, G#(솔)=G5, D#(레)=D5, A#(라)=A4, E#(미)=E5, B#(시)=B4
 
         // 조표 간격
         this.keySignatureSpacing = 10; // 조표 간 간격

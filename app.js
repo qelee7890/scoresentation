@@ -1,6 +1,5 @@
 (function () {
     const DEFAULT_HYMN_ID = "46";
-    const SONG_DATASET_FILES = ["hymns.json", "ccm.json"];
     const PITCH_LABEL_VERSION = 2;
     const LEGACY_PITCH_SHIFT_DOWN = {
         C4: "B3",
@@ -22,41 +21,8 @@
         E6: "D6"
     };
 
-    function isPlainObject(value) {
-        return Object.prototype.toString.call(value) === "[object Object]";
-    }
-
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
-    }
-
-    function deepMerge(base, override) {
-        if (override === undefined) {
-            return deepClone(base);
-        }
-
-        if (Array.isArray(base) || Array.isArray(override)) {
-            return deepClone(override);
-        }
-
-        if (isPlainObject(base) && isPlainObject(override)) {
-            const merged = {};
-            const keys = new Set([...Object.keys(base), ...Object.keys(override)]);
-
-            for (const key of keys) {
-                if (override[key] === undefined) {
-                    merged[key] = deepClone(base[key]);
-                } else if (base[key] === undefined) {
-                    merged[key] = deepClone(override[key]);
-                } else {
-                    merged[key] = deepMerge(base[key], override[key]);
-                }
-            }
-
-            return merged;
-        }
-
-        return deepClone(override);
     }
 
     function shiftPitchLabelsInNotes(notes) {
@@ -142,38 +108,6 @@
         return reference ? `${reference} ${song.title}` : song.title;
     }
 
-    function normalizeSongMap(songMap) {
-        const normalized = {};
-        if (!songMap || typeof songMap !== "object") {
-            return normalized;
-        }
-
-        Object.keys(songMap).forEach((key) => {
-            const song = songMap[key];
-            if (!song || typeof song !== "object") {
-                return;
-            }
-
-            const normalizedSong = normalizeHymnPitchLabels(deepClone(song));
-            if (!normalizedSong.id) {
-                normalizedSong.id = String(key).trim();
-            }
-
-            normalizedSong.id = getSongId(normalizedSong);
-            normalizedSong.category = getSongCategory(normalizedSong);
-            if (!normalizedSong.id) {
-                return;
-            }
-
-            normalized[normalizedSong.id] = normalizedSong;
-        });
-
-        return normalized;
-    }
-
-    function mergeSongMaps(...maps) {
-        return maps.reduce((merged, map) => Object.assign(merged, normalizeSongMap(map)), {});
-    }
 
     function getRequestedHymnId() {
         const params = new URLSearchParams(window.location.search);
@@ -250,21 +184,12 @@
     }
 
     function buildOptions(song) {
-        const songId = getSongId(song);
-        const demoNumber = window.DEMO_HYMN_DATA && window.DEMO_HYMN_DATA.hymn
-            ? getSongId(window.DEMO_HYMN_DATA.hymn)
-            : DEFAULT_HYMN_ID;
-
         return {
             useBackground: false,
             backgroundImage: null,
             backgroundOpacity: 0.7,
-            showNotes: songId === demoNumber || hasRenderableNotes(song)
+            showNotes: hasRenderableNotes(song)
         };
-    }
-
-    function getSavedHymn(hymnId) {
-        return window.HymnStorage ? window.HymnStorage.getSavedHymn(hymnId) : null;
     }
 
     async function initStorage() {
@@ -280,53 +205,44 @@
     }
 
     function hasAvailableHymn(hymnId, hymnMap) {
-        return !!(getSavedHymn(hymnId) || (hymnMap && hymnMap[hymnId]));
+        return !!(hymnMap && hymnMap[hymnId]);
     }
 
     function buildPresentationData(hymnId, hymnMap) {
-        const demoData = deepClone(window.DEMO_HYMN_DATA);
-        const savedHymn = getSavedHymn(hymnId);
-
-        if (savedHymn) {
-            const mergedSavedHymn = getSongId(savedHymn) === getSongId(demoData.hymn)
-                ? deepMerge(savedHymn, demoData.hymn)
-                : deepClone(savedHymn);
-
-            return {
-                options: buildOptions(mergedSavedHymn),
-                hymn: normalizeHymnPitchLabels(mergedSavedHymn)
-            };
-        }
-
         if (!hymnMap) {
-            demoData.hymn = normalizeHymnPitchLabels(demoData.hymn);
-            return demoData;
+            return { options: buildOptions({}), hymn: {} };
         }
 
         const selectedHymn = hymnMap[hymnId] || hymnMap[DEFAULT_HYMN_ID];
-        const mergedHymn = getSongId(selectedHymn) === getSongId(demoData.hymn)
-            ? deepMerge(selectedHymn, demoData.hymn)
-            : deepClone(selectedHymn);
+        if (!selectedHymn) {
+            return { options: buildOptions({}), hymn: {} };
+        }
 
         return {
-            options: buildOptions(mergedHymn),
-            hymn: normalizeHymnPitchLabels(mergedHymn)
+            options: buildOptions(selectedHymn),
+            hymn: normalizeHymnPitchLabels(deepClone(selectedHymn))
         };
     }
 
-    async function loadHymnMap() {
-        const datasets = await Promise.all(SONG_DATASET_FILES.map(async (path, index) => {
-            const response = await fetch(path, { cache: "no-store" });
-            if (response.status === 404 && index > 0) {
-                return {};
-            }
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        }));
+    function buildHymnMapFromStorage() {
+        if (!window.HymnStorage) {
+            return null;
+        }
 
-        return mergeSongMaps(...datasets);
+        const list = window.HymnStorage.listSavedHymns();
+        if (!list || list.length === 0) {
+            return null;
+        }
+
+        const map = {};
+        for (const item of list) {
+            const hymn = window.HymnStorage.getSavedHymn(item.id);
+            if (hymn) {
+                map[item.id] = hymn;
+            }
+        }
+
+        return Object.keys(map).length > 0 ? map : null;
     }
 
     function navigateToHymn(hymnId) {
@@ -383,24 +299,16 @@
 
     async function init() {
         const requestedHymnId = getRequestedHymnId();
-        let hymnMap = null;
 
         await initStorage();
         bindPicker(false, null);
 
-        try {
-            hymnMap = await loadHymnMap();
-        } catch (error) {
-            const resolvedId = hasAvailableHymn(requestedHymnId, null) ? requestedHymnId : DEFAULT_HYMN_ID;
-            const data = buildPresentationData(resolvedId, null);
-            startPresentation(data);
-            updatePicker(data.hymn, true);
+        const hymnMap = buildHymnMapFromStorage();
+        const datasetReady = !!hymnMap;
 
-            if (getSavedHymn(resolvedId)) {
-                setStatus(`${getSongReference(data.hymn) || resolvedId} 저장본을 프레젠테이션에 반영했습니다.`, "info");
-            } else {
-                setStatus("곡 데이터 파일을 읽지 못해 46장 샘플 데모로 실행했습니다. 저장본은 계속 불러올 수 있습니다.", "warning");
-            }
+        if (!datasetReady) {
+            setStatus("곡 데이터를 불러올 수 없습니다. 로컬 서버(server.py)를 실행해 주세요.", "warning");
+            startPresentation(buildPresentationData(DEFAULT_HYMN_ID, null));
             return;
         }
 
@@ -409,22 +317,9 @@
         startPresentation(data);
         bindPicker(true, hymnMap);
 
-        if (getSavedHymn(resolvedId)) {
-            setStatus(`${getSongReference(data.hymn) || resolvedId} 저장본을 프레젠테이션에 반영했습니다.`, "info");
-            return;
-        }
-
         if (resolvedId !== requestedHymnId) {
             setStatus(`${requestedHymnId} 곡을 찾지 못해 ${getSongReference(data.hymn) || resolvedId}(으)로 대신 열었습니다.`, "warning");
-            return;
         }
-
-        if (resolvedId === DEFAULT_HYMN_ID) {
-            setStatus("46장은 데모 악보 데이터가 포함되어 있습니다. 다른 곡은 현재 가사 프레젠테이션으로 열립니다.", "info");
-            return;
-        }
-
-        setStatus(`${getSongReference(data.hymn) || resolvedId}을(를) 불러왔습니다. 저장본이 있으면 프레젠테이션에 자동 반영됩니다.`, "info");
     }
 
     document.addEventListener("DOMContentLoaded", init);
