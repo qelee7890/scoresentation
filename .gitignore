@@ -27,3 +27,6 @@ data/
 *.db-wal
 __pycache__/
 *.pyc
+
+# Sample files (local only)
+sample/
