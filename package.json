@@ -1,0 +1,7 @@
+{
+  "name": "scoresentation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Church hymn presentation and score editor"
+}

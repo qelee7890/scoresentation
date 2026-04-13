@@ -34,3 +34,4 @@ __pycache__/
 sample/
 .claude/
 nwc_bridge.js
+node_modules/

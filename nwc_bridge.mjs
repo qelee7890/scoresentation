@@ -6,7 +6,7 @@
  */
 
 import fs from 'fs';
-import { parseNWC } from 'file:///C:/Users/qelee/AppData/Local/Temp/nwc-viewer/lib/nwc2xml/parser.js';
+import { parseNWC } from './lib/nwc2xml/parser.js';
 
 const NAMES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const DURS = ['w', 'h', 'q', '8', '16', '32', '64'];
