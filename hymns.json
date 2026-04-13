@@ -15,10 +15,153 @@
         ],
         "english": [
           ""
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "A4",
+                "duration": "w"
+              },
+              {
+                "pitch": "A4",
+                "duration": "h."
+              }
+            ]
+          }
         ]
       }
     },
-    "chorus": null
+    "chorus": null,
+    "pitchLabelVersion": 2
   },
   "2": {
     "number": "2",
@@ -1908,6 +2051,286 @@
           "Praise Him! praise Him!<br/>Jesus, our blessed Redeemer!<br/>Sing, O Earth, His wonderful love proclaim!",
           "Hail Him! hail Him!<br/>highest archangel sing glory<br/>Strength and honor give to His holy name!",
           "Like a shepherd,<br/>Jesus will guard His children<br/>In His arms He carries them all day long."
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              }
+            ]
+          }
         ]
       },
       "2": {
@@ -1920,6 +2343,286 @@
           "Praise Him! praise Him!<br/>Jesus, our blessed Redeemer!<br/>For our sins He suffered, and bled, and died.",
           "He, our Rock, our<br/>Hope of eternal salvation,<br/>Hail Him! hail Him Jesus, the Crucified!",
           "Sound His praises!<br/>Jesus, who bore our sorrows!<br/>Love unbounded, wonderful, deep, and strong!"
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              }
+            ]
+          }
         ]
       },
       "3": {
@@ -1932,6 +2635,286 @@
           "Praise Him! praise him!<br/>Jesus, our blessed Redeemer!<br/>heavenly portals loud with hosannas ring!",
           "Jesus, Savior,<br/>reigneth for ever and ever<br/>Crown Him! crown Him! Prophet, and Priest, and King!",
           "Christ is coming,<br/>over the world victorious<br/>pow'r and glory unto the Lord belong."
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "h."
+              }
+            ]
+          },
+          {
+            "0": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q."
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              }
+            ],
+            "1": [
+              {
+                "pitch": "B4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "E5",
+                "duration": "q."
+              },
+              {
+                "pitch": "A4",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "q."
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              }
+            ]
+          }
         ]
       }
     },
@@ -1941,8 +2924,105 @@
       ],
       "english": [
         "Praise Him! praise Him!<br/>tell of His excellent greatness.<br/>Praise Him! praise Him!<br/>ever in joyful song!"
+      ],
+      "notes": [
+        {
+          "0": [
+            {
+              "pitch": "B4",
+              "duration": "h."
+            },
+            {
+              "pitch": "C5",
+              "duration": "q."
+            },
+            {
+              "pitch": "E5",
+              "duration": "q."
+            },
+            {
+              "pitch": "A4",
+              "duration": "q."
+            },
+            {
+              "pitch": "C5",
+              "duration": "q."
+            },
+            {
+              "pitch": "B4",
+              "duration": "8"
+            },
+            {
+              "pitch": "C5",
+              "duration": "8"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8"
+            },
+            {
+              "pitch": "A4",
+              "duration": "8"
+            },
+            {
+              "pitch": "G4",
+              "duration": "8"
+            },
+            {
+              "pitch": "F4",
+              "duration": "8"
+            },
+            {
+              "pitch": "E4",
+              "duration": "q."
+            }
+          ],
+          "1": [
+            {
+              "pitch": "A4",
+              "duration": "q."
+            },
+            {
+              "pitch": "C5",
+              "duration": "q."
+            },
+            {
+              "pitch": "E5",
+              "duration": "q."
+            },
+            {
+              "pitch": "D5",
+              "duration": "q."
+            },
+            {
+              "pitch": "B4",
+              "duration": "q."
+            },
+            {
+              "pitch": "A4",
+              "duration": "8"
+            },
+            {
+              "pitch": "G4",
+              "duration": "8"
+            },
+            {
+              "pitch": "A4",
+              "duration": "8"
+            },
+            {
+              "pitch": "C5",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8"
+            }
+          ]
+        }
       ]
-    }
+    },
+    "pitchLabelVersion": 2
   },
   "47": {
     "number": "47",
@@ -3012,6 +4092,144 @@
         ],
         "english": [
           ""
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              }
+            ]
+          }
         ]
       },
       "2": {
@@ -3020,6 +4238,144 @@
         ],
         "english": [
           ""
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              }
+            ]
+          }
         ]
       },
       "3": {
@@ -3028,6 +4384,144 @@
         ],
         "english": [
           ""
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              }
+            ]
+          }
         ]
       },
       "4": {
@@ -3036,6 +4530,144 @@
         ],
         "english": [
           ""
+        ],
+        "notes": [
+          {
+            "0": [
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "q"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "8"
+              },
+              {
+                "pitch": "F4",
+                "duration": "8"
+              },
+              {
+                "pitch": "G4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "E5",
+                "duration": "q"
+              },
+              {
+                "pitch": "D5",
+                "duration": "q"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "C5",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "B4",
+                "duration": "8"
+              },
+              {
+                "pitch": "A4",
+                "duration": "q"
+              },
+              {
+                "pitch": "G4",
+                "duration": "q"
+              },
+              {
+                "pitch": "F4",
+                "duration": "q"
+              }
+            ]
+          }
         ]
       }
     },
@@ -3045,8 +4677,227 @@
       ],
       "english": [
         ""
+      ],
+      "notes": [
+        {
+          "0": [
+            {
+              "pitch": "D5",
+              "duration": "8."
+            },
+            {
+              "pitch": "C5",
+              "duration": "16"
+            },
+            {
+              "pitch": "B4",
+              "duration": "h"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8"
+            },
+            {
+              "pitch": "A4",
+              "duration": "8"
+            },
+            {
+              "pitch": "C4",
+              "duration": "8"
+            },
+            {
+              "pitch": "D4",
+              "duration": "8"
+            },
+            {
+              "pitch": "E4",
+              "duration": "h."
+            },
+            {
+              "pitch": "C4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B3",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8."
+            },
+            {
+              "pitch": "B4",
+              "duration": "16"
+            },
+            {
+              "pitch": "A4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "q"
+            },
+            {
+              "pitch": "D5",
+              "duration": "q"
+            },
+            {
+              "pitch": "C5",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "q."
+            },
+            {
+              "pitch": "A4",
+              "duration": "8"
+            },
+            {
+              "pitch": "B4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8."
+            },
+            {
+              "pitch": "B4",
+              "duration": "16"
+            },
+            {
+              "pitch": "A4",
+              "duration": "q"
+            },
+            {
+              "pitch": "F4",
+              "duration": "q"
+            },
+            {
+              "pitch": "C5",
+              "duration": "q"
+            },
+            {
+              "pitch": "E5",
+              "duration": "q"
+            },
+            {
+              "pitch": "D5",
+              "duration": "h."
+            },
+            {
+              "pitch": "B4",
+              "duration": "8."
+            },
+            {
+              "pitch": "B4",
+              "duration": "16"
+            },
+            {
+              "pitch": "E5",
+              "duration": "h"
+            },
+            {
+              "pitch": "E5",
+              "duration": "8."
+            },
+            {
+              "pitch": "D5",
+              "duration": "16"
+            },
+            {
+              "pitch": "C5",
+              "duration": "8."
+            },
+            {
+              "pitch": "G4",
+              "duration": "16"
+            },
+            {
+              "pitch": "A4",
+              "duration": "h."
+            },
+            {
+              "pitch": "F4",
+              "duration": "8."
+            },
+            {
+              "pitch": "E4",
+              "duration": "16"
+            },
+            {
+              "pitch": "D4",
+              "duration": "q"
+            },
+            {
+              "pitch": "A4",
+              "duration": "8."
+            },
+            {
+              "pitch": "A4",
+              "duration": "16"
+            },
+            {
+              "pitch": "D5",
+              "duration": "h"
+            },
+            {
+              "pitch": "D5",
+              "duration": "8."
+            },
+            {
+              "pitch": "C5",
+              "duration": "16"
+            },
+            {
+              "pitch": "F4",
+              "duration": "8."
+            },
+            {
+              "pitch": "F4",
+              "duration": "16"
+            },
+            {
+              "pitch": "G4",
+              "duration": "h."
+            },
+            {
+              "pitch": "E4",
+              "duration": "8."
+            },
+            {
+              "pitch": "E4",
+              "duration": "16"
+            },
+            {
+              "pitch": "E4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "8."
+            },
+            {
+              "pitch": "A4",
+              "duration": "16"
+            },
+            {
+              "pitch": "G4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "q"
+            },
+            {
+              "pitch": "B4",
+              "duration": "q"
+            }
+          ]
+        }
       ]
-    }
+    },
+    "pitchLabelVersion": 2
   },
   "73": {
     "number": "73",
