@@ -32,3 +32,5 @@ __pycache__/
 
 # Sample files (local only)
 sample/
+.claude/
+nwc_bridge.js
