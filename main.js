@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, protocol, net, shell } from "electron";
+import { app, BrowserWindow, ipcMain, protocol, net, shell, dialog } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { autoUpdater } from "electron-updater";
 import { HymnRepository, SetlistRepository } from "./main/db.js";
 import {
     generateMediaFilename, cleanupOrphanMedia,
@@ -13,7 +14,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = __dirname;
-const DATA_DIR = path.join(ROOT_DIR, "data");
+const IS_PACKAGED = app.isPackaged;
+const DATA_DIR = IS_PACKAGED
+    ? path.join(process.resourcesPath, "data")
+    : path.join(ROOT_DIR, "data");
 const DB_PATH = path.join(DATA_DIR, "scoresentation.db");
 const SETLIST_DB_PATH = path.join(DATA_DIR, "setlists.db");
 const MEDIA_DIR = path.join(DATA_DIR, "media");
@@ -218,6 +222,37 @@ function cleanupOrphanMediaSafe() {
     }
 }
 
+// ── Auto updater ──
+
+function setupAutoUpdater() {
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on("update-available", (info) => {
+        console.log(`[updater] Update available: ${info.version}`);
+    });
+
+    autoUpdater.on("update-downloaded", (info) => {
+        dialog.showMessageBox(mainWindow, {
+            type: "info",
+            title: "업데이트 준비 완료",
+            message: `새 버전 ${info.version}이(가) 다운로드되었습니다.\n지금 재시작하시겠습니까?`,
+            buttons: ["재시작", "나중에"],
+            defaultId: 0,
+        }).then((result) => {
+            if (result.response === 0) {
+                autoUpdater.quitAndInstall();
+            }
+        });
+    });
+
+    autoUpdater.on("error", (err) => {
+        console.error("[updater] error:", err.message);
+    });
+
+    autoUpdater.checkForUpdatesAndNotify();
+}
+
 // ── App lifecycle ──
 
 app.whenReady().then(() => {
@@ -232,6 +267,10 @@ app.whenReady().then(() => {
     registerImageFolderHandlers();
 
     createMainWindow();
+
+    if (IS_PACKAGED) {
+        setupAutoUpdater();
+    }
 });
 
 app.on("window-all-closed", () => {
