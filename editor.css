@@ -757,6 +757,11 @@ body.editor-body {
     font-weight: 600;
 }
 
+.editor-note-menu button[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
 .editor-note-menu-label {
     font-size: 12px;
     color: var(--editor-muted);
@@ -774,6 +779,11 @@ body.editor-body {
     color: var(--editor-accent);
 }
 
+.editor-line-text-wrap {
+    position: relative;
+    display: inline-block;
+}
+
 .editor-line-text {
     display: block;
     font-size: 48px;
@@ -782,6 +792,26 @@ body.editor-body {
     letter-spacing: -0.03em;
     outline: none;
     white-space: nowrap;
+    position: relative;
+    z-index: 1;
+}
+
+.editor-line-text-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    user-select: none;
+    color: transparent;
+    font-size: 48px;
+    line-height: 1.18;
+    text-align: left;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+    z-index: 2;
+}
+
+.editor-line-text-overlay .is-dangling {
+    color: #d8324c;
 }
 
 .editor-line-text:focus,
@@ -846,6 +876,10 @@ body.editor-body {
     }
 
     .editor-line-text {
+        font-size: 34px;
+    }
+
+    .editor-line-text-overlay {
         font-size: 34px;
     }
 

@@ -976,13 +976,16 @@
                                 <div class="editor-line-track">
                                     <div class="editor-line-header">${lineIndex + 1}번째 줄</div>
                                     <div class="notation-container edit-mode"></div>
-                                    <div
-                                        class="editor-line-text"
-                                        contenteditable="true"
-                                        spellcheck="false"
-                                        data-role="korean-line"
-                                        data-line-index="${lineIndex}"
-                                    >${line}</div>
+                                    <div class="editor-line-text-wrap" data-line-index="${lineIndex}">
+                                        <div
+                                            class="editor-line-text"
+                                            contenteditable="true"
+                                            spellcheck="false"
+                                            data-role="korean-line"
+                                            data-line-index="${lineIndex}"
+                                        >${line}</div>
+                                        <div class="editor-line-text-overlay" aria-hidden="true"></div>
+                                    </div>
                                 </div>
                             </div>
                         `).join("")}
@@ -1834,17 +1837,21 @@
 
             if (metrics.chars.length === 0) {
                 notationEl.innerHTML = "";
+                this.renderLineTextOverlay(lineEl, textEl, new Set());
                 this.renderBeamContextMenu();
                 return;
             }
 
             const renderNotes = this.createRenderableNotes(slide, lineIndex, metrics.chars.length);
+            const danglingInfo = this.computeLineDanglingInfo(slide, lineIndex, renderNotes, metrics.chars.length);
+            this.renderLineTextOverlay(lineEl, textEl, danglingInfo.textIndices);
             notationEl.innerHTML = this.notesEngine.createLineNotation(
                 metrics.chars,
                 renderNotes,
                 metrics.positions,
                 metrics.totalWidth,
-                slide.key
+                slide.key,
+                { extraNotes: danglingInfo.extraNotes }
             );
 
             const isHovered = this.hoveredTarget && this.hoveredTarget.lineIndex === lineIndex;
@@ -1924,6 +1931,62 @@
             }
 
             return renderNotes;
+        }
+
+        computeLineDanglingInfo(slide, lineIndex, renderNotes, charCount) {
+            const textIndices = new Set();
+            const extraNotes = [];
+            const stored = slide && slide.notes && slide.notes[lineIndex] ? slide.notes[lineIndex] : null;
+            const hasAnyNote = stored && stored.some(hasNoteData);
+
+            if (hasAnyNote) {
+                for (let i = 0; i < charCount; i++) {
+                    if (!hasNoteData(renderNotes[i])) {
+                        textIndices.add(i);
+                    }
+                }
+            }
+
+            if (stored && stored.length > charCount) {
+                for (let i = charCount; i < stored.length; i++) {
+                    if (hasNoteData(stored[i])) {
+                        extraNotes.push(stored[i]);
+                    }
+                }
+            }
+
+            return { textIndices, extraNotes };
+        }
+
+        renderLineTextOverlay(lineEl, textEl, danglingTextIndices) {
+            const wrap = lineEl.querySelector(".editor-line-text-wrap");
+            if (!wrap) return;
+            const overlay = wrap.querySelector(".editor-line-text-overlay");
+            if (!overlay) return;
+
+            const text = textEl.textContent || "";
+            if (!danglingTextIndices || danglingTextIndices.size === 0) {
+                overlay.innerHTML = "";
+                return;
+            }
+
+            let html = "";
+            let charIndex = 0;
+            for (let i = 0; i < text.length; i++) {
+                const ch = text[i];
+                if (ch === " " || ch === "\n") {
+                    html += ch === " " ? " " : "<br>";
+                    continue;
+                }
+                const escaped = ch === "<" ? "&lt;" : ch === ">" ? "&gt;" : ch === "&" ? "&amp;" : ch;
+                if (danglingTextIndices.has(charIndex)) {
+                    html += `<span class="is-dangling">${escaped}</span>`;
+                } else {
+                    html += `<span>${escaped}</span>`;
+                }
+                charIndex++;
+            }
+            overlay.innerHTML = html;
         }
 
         renderHoverPreview(notationEl, slide, metrics, renderNotes, target) {
@@ -2467,6 +2530,13 @@
                 resized[i] = currentLine[i] ? { ...currentLine[i] } : null;
             }
 
+            // 텍스트 길이를 넘어선 dangling 음표(데이터 있음)는 보존
+            for (let i = nextLength; i < currentLine.length; i++) {
+                if (hasNoteData(currentLine[i])) {
+                    resized.push({ ...currentLine[i] });
+                }
+            }
+
             slide.notes[lineIndex] = resized;
             this.cleanupOrphanBeamGroups(slide);
             this.commitSlideNotes(slide);
@@ -2606,6 +2676,9 @@
             const noteMenuButton = event.target.closest("[data-note-menu-action]");
             if (noteMenuButton) {
                 event.preventDefault();
+                if (noteMenuButton.disabled) {
+                    return;
+                }
                 this.handleNoteMenuAction(noteMenuButton.dataset.noteMenuAction);
                 return;
             }
@@ -3629,15 +3702,41 @@
             const isSharp = acc === "sharp";
             const isFlat = acc === "flat";
             const isNatural = acc === "natural";
+
+            const slide = this.getCurrentSlide();
+            const lineNotes = (slide && slide.notes && slide.notes[selectedNote.lineIndex]) || [];
+            const prevNote = selectedNote.charIndex > 0 ? lineNotes[selectedNote.charIndex - 1] : null;
+            const canShiftLeft = selectedNote.charIndex > 0 && !hasNoteData(prevNote);
+
+            const keyAcc = this.getKeyAccidentalForPitch(selectedNote.note.pitch, slide ? slide.key : null);
+            const sharpDisabled = keyAcc === "sharp";
+            const flatDisabled = keyAcc === "flat";
+            const naturalDisabled = keyAcc === null;
+
+            const dis = (cond) => cond ? "disabled" : "";
+
             menuEl.innerHTML = `
+                <button type="button" data-note-menu-action="shift-left" ${dis(!canShiftLeft)} title="한 칸 당기기">&lt;</button>
+                <button type="button" data-note-menu-action="shift-right" title="한 칸 밀기">&gt;</button>
                 <button type="button" data-note-menu-action="length" title="길이 변경">♩</button>
                 <button type="button" data-note-menu-action="dot" class="${dotted ? "is-active" : ""}" title="${dotted ? "점 제거" : "점 추가"}">•</button>
-                <button type="button" data-note-menu-action="sharp" class="${isSharp ? "is-active" : ""}" title="${isSharp ? "샵 제거" : "샵 추가"}">♯</button>
-                <button type="button" data-note-menu-action="flat" class="${isFlat ? "is-active" : ""}" title="${isFlat ? "플랫 제거" : "플랫 추가"}">♭</button>
-                <button type="button" data-note-menu-action="natural" class="${isNatural ? "is-active" : ""}" title="${isNatural ? "제자리표 제거" : "제자리표 추가"}">♮</button>
+                <button type="button" data-note-menu-action="sharp" ${dis(sharpDisabled && !isSharp)} class="${isSharp ? "is-active" : ""}" title="${sharpDisabled ? "조표와 중복" : (isSharp ? "샵 제거" : "샵 추가")}">♯</button>
+                <button type="button" data-note-menu-action="flat" ${dis(flatDisabled && !isFlat)} class="${isFlat ? "is-active" : ""}" title="${flatDisabled ? "조표와 중복" : (isFlat ? "플랫 제거" : "플랫 추가")}">♭</button>
+                <button type="button" data-note-menu-action="natural" ${dis(naturalDisabled && !isNatural)} class="${isNatural ? "is-active" : ""}" title="${naturalDisabled ? "조표가 없는 음" : (isNatural ? "제자리표 제거" : "제자리표 추가")}">♮</button>
                 <button type="button" data-note-menu-action="delete" title="삭제">🗑</button>
-                <button type="button" data-note-menu-action="close" title="닫기">✕</button>
             `;
+        }
+
+        getKeyAccidentalForPitch(pitch, key) {
+            if (!pitch) return null;
+            const keyInfo = this.notesEngine.parseKeySignature(key);
+            if (!keyInfo || keyInfo.count === 0) return null;
+            const noteLetter = pitch.charAt(0).toUpperCase();
+            const flatOrder = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+            const sharpOrder = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+            const order = keyInfo.type === 'flat' ? flatOrder : sharpOrder;
+            const affected = order.slice(0, keyInfo.count);
+            return affected.includes(noteLetter) ? keyInfo.type : null;
         }
 
         handleNoteMenuAction(action) {
@@ -3672,9 +3771,56 @@
                 return;
             }
 
-            if (action === "close") {
-                this.clearSelectedNoteTarget();
+            if (action === "shift-left") {
+                this.applySelectedNoteShift(-1);
+                return;
             }
+
+            if (action === "shift-right") {
+                this.applySelectedNoteShift(1);
+                return;
+            }
+        }
+
+        applySelectedNoteShift(direction) {
+            const selectedNote = this.getSelectedNote();
+            if (!selectedNote) return;
+            const slide = this.getCurrentSlide();
+            if (!slide || !slide.notes || !slide.notes[selectedNote.lineIndex]) return;
+            const lineNotes = slide.notes[selectedNote.lineIndex];
+            const charIndex = selectedNote.charIndex;
+
+            if (direction < 0) {
+                if (charIndex === 0) {
+                    this.setStatus("더 앞으로 당길 수 없습니다.", "warning");
+                    return;
+                }
+                if (hasNoteData(lineNotes[charIndex - 1])) {
+                    this.setStatus("앞 칸에 다른 음표가 있어 당길 수 없습니다.", "warning");
+                    return;
+                }
+                this.recordHistory();
+                for (let i = charIndex; i < lineNotes.length; i++) {
+                    lineNotes[i - 1] = lineNotes[i];
+                }
+                lineNotes[lineNotes.length - 1] = null;
+                this.selectedNoteTarget.charIndex = charIndex - 1;
+            } else {
+                this.recordHistory();
+                lineNotes.push(null);
+                for (let i = lineNotes.length - 1; i > charIndex; i--) {
+                    lineNotes[i] = lineNotes[i - 1];
+                }
+                lineNotes[charIndex] = null;
+                this.selectedNoteTarget.charIndex = charIndex + 1;
+            }
+
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+            this.renderLine(selectedNote.lineIndex);
+            this.updateToolbarState();
+            this.renderExportJson();
+            this.setStatus(direction < 0 ? "음표를 한 칸 당겼습니다." : "음표를 한 칸 밀었습니다.");
         }
 
         applySelectedNoteAccidentalToggle(kind) {

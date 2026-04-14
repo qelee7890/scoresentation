@@ -477,7 +477,7 @@ class NotesEngine {
      * 한 줄의 가사에 대한 오선지와 음표 SVG 생성
      * @param {string} key - 조표 문자열 (예: "4b", "Bb")
      */
-    createLineNotation(chars, notes, charPositions, totalWidth, key = null) {
+    createLineNotation(chars, notes, charPositions, totalWidth, key = null, dangling = null) {
         if (!notes || notes.length === 0) return '';
 
         const svgHeight = this.staffHeight + this.svgExtraHeight;
@@ -487,9 +487,15 @@ class NotesEngine {
         const keyInfo = this.parseKeySignature(key);
         const keyWidth = this.getKeySignatureWidth(keyInfo);
 
-        // SVG 전체 너비 = 가사 너비 + 음자리표 영역 + 조표 영역
+        // 추가 음표(dangling, chars 범위 밖) 폭 확보
+        const danglingColor = '#d8324c';
+        const extraNotes = (dangling && Array.isArray(dangling.extraNotes)) ? dangling.extraNotes : [];
+        const extraSpacing = this.lineSpacing * 2.5;
+        const extraWidth = extraNotes.length > 0 ? (extraNotes.length * extraSpacing + extraSpacing * 0.5) : 0;
+
+        // SVG 전체 너비 = 가사 너비 + 음자리표 영역 + 조표 영역 + dangling 음표 영역
         const totalMargin = this.clefMargin + keyWidth;
-        const fullWidth = totalWidth + totalMargin;
+        const fullWidth = totalWidth + totalMargin + extraWidth;
 
         // viewBox와 width를 일치시켜 스케일링 방지
         let svg = `<svg class="notation-svg" width="${fullWidth}" height="${svgHeight}"
@@ -535,6 +541,27 @@ class NotesEngine {
         Object.values(beamGroups).forEach(group => {
             svg += this.createBeams(group, staffTop);
         });
+
+        // Dangling notes (chars 범위 밖) — 빨간색으로 끝에 추가 표시
+        if (extraNotes.length > 0) {
+            const lastCharX = charPositions.length > 0
+                ? charPositions[charPositions.length - 1] + totalMargin
+                : totalMargin;
+            extraNotes.forEach((note, idx) => {
+                if (!note || !note.pitch) return;
+                const ex = lastCharX + extraSpacing * (idx + 1);
+                svg += this.createNote(
+                    ex,
+                    note.pitch,
+                    note.duration || 'q',
+                    staffTop,
+                    danglingColor,
+                    false,
+                    false,
+                    note.accidental || null
+                );
+            });
+        }
 
         svg += '</svg>';
         return svg;
