@@ -899,6 +899,13 @@
         }
 
         updateHeader() {
+            if (!this.data || !this.data.hymn) {
+                this.dom.hymnNumber.value = "";
+                this.dom.hymnTitle.textContent = "";
+                this.dom.hymnMeta.textContent = "";
+                document.title = "편집기";
+                return;
+            }
             const hymn = this.data.hymn;
             this.dom.hymnNumber.value = getSongId(hymn);
             this.dom.hymnTitle.textContent = hymn.title || getSongId(hymn);
@@ -2042,18 +2049,39 @@
             `;
         }
 
-        getNoteRenderPosition(metrics, slide, charIndex, pitch) {
+        getNoteRenderPosition(metrics, slide, charIndex, pitch, lineIndex) {
             const keyInfo = this.notesEngine.parseKeySignature(slide.key);
             const totalMargin = this.notesEngine.clefMargin + this.notesEngine.getKeySignatureWidth(keyInfo);
-            const x = metrics.positions[charIndex] + totalMargin;
+            const charCount = metrics.positions.length;
+            let x;
+            if (charIndex < charCount) {
+                x = metrics.positions[charIndex] + totalMargin;
+            } else {
+                const lastCharX = charCount > 0
+                    ? metrics.positions[charCount - 1] + totalMargin
+                    : totalMargin;
+                const extraSpacing = this.notesEngine.lineSpacing * 2.5;
+                const danglingIdx = this.getDanglingRenderIndex(slide, lineIndex, charCount, charIndex);
+                x = lastCharX + extraSpacing * (danglingIdx + 1);
+            }
             const pitchPos = this.notesEngine.pitchMap[pitch] ?? 3;
             const y = this.notesEngine.staffTopMargin + (pitchPos * this.notesEngine.lineSpacing);
 
             return { x, y };
         }
 
-        getNoteVisualPosition(metrics, slide, charIndex, pitch) {
-            const position = this.getNoteRenderPosition(metrics, slide, charIndex, pitch);
+        getDanglingRenderIndex(slide, lineIndex, charCount, charIndex) {
+            const stored = slide && slide.notes && slide.notes[lineIndex] ? slide.notes[lineIndex] : [];
+            let idx = 0;
+            for (let i = charCount; i < stored.length; i++) {
+                if (i === charIndex) return idx;
+                if (hasNoteData(stored[i])) idx++;
+            }
+            return idx;
+        }
+
+        getNoteVisualPosition(metrics, slide, charIndex, pitch, lineIndex) {
+            const position = this.getNoteRenderPosition(metrics, slide, charIndex, pitch, lineIndex);
             return {
                 x: position.x,
                 y: position.y + (this.notesEngine.lineSpacing * 0.5)
@@ -2070,7 +2098,7 @@
                 return;
             }
 
-            const position = this.getNoteVisualPosition(metrics, slide, target.charIndex, target.existingNote.pitch);
+            const position = this.getNoteVisualPosition(metrics, slide, target.charIndex, target.existingNote.pitch, target.lineIndex);
             const previewColor = this.notesEngine.previewColor;
             const dotX = position.x + (this.notesEngine.lineSpacing * 0.9);
             const dotY = position.y;
@@ -2105,7 +2133,7 @@
             }
 
             const selectedMarkup = selectedNotes.map((item) => {
-                const position = this.getNoteVisualPosition(metrics, slide, item.charIndex, item.note.pitch);
+                const position = this.getNoteVisualPosition(metrics, slide, item.charIndex, item.note.pitch, lineIndex);
                 return `
                     <circle cx="${position.x}" cy="${position.y}"
                             r="${this.notesEngine.lineSpacing * 0.78}"
@@ -2124,6 +2152,11 @@
             }
 
             if (!this.isEditMode || !target) {
+                return;
+            }
+
+            // 가사 범위를 벗어난 영역(dangling)에는 프리뷰를 표시하지 않음
+            if (target.charIndex >= metrics.positions.length) {
                 return;
             }
 
@@ -2749,6 +2782,15 @@
             if (event.target.closest("[data-canvas-context-menu]")) {
                 return;
             }
+            // 음표(dangling 포함) 위에서 우클릭하면 음표 인라인 메뉴 열기
+            if (this.isEditMode) {
+                const target = this.getTargetFromEvent(event);
+                if (target && target.existingNote) {
+                    event.preventDefault();
+                    this.setSelectedNoteTarget(target);
+                    return;
+                }
+            }
             event.preventDefault();
             this.openCanvasContextMenu(event);
         }
@@ -2959,6 +3001,28 @@
                 ? existingCandidate
                 : null;
 
+            // dangling 음표 히트테스트: 가사 범위를 넘어선 음표
+            if (!existingNote && slide && slide.notes && slide.notes[lineIndex]) {
+                const lineNotes = slide.notes[lineIndex];
+                const charCount = metrics.positions.length;
+                if (lineNotes.length > charCount) {
+                    for (let i = charCount; i < lineNotes.length; i++) {
+                        const dn = lineNotes[i];
+                        if (!hasNoteData(dn)) continue;
+                        if (this.isPointerOnNoteHead(metrics, slide, lineIndex, i, dn, localSvgX, localY)) {
+                            return {
+                                kind: "note",
+                                lineIndex,
+                                charIndex: i,
+                                pitch,
+                                duration: this.notesEngine.getDefaultDuration(slide.timeSignature),
+                                existingNote: dn
+                            };
+                        }
+                    }
+                }
+            }
+
             return {
                 kind: "note",
                 lineIndex,
@@ -2974,7 +3038,7 @@
                 return false;
             }
 
-            const position = this.getNoteVisualPosition(metrics, slide, charIndex, note.pitch);
+            const position = this.getNoteVisualPosition(metrics, slide, charIndex, note.pitch, lineIndex);
             const headHalfWidth = this.notesEngine.lineSpacing * 0.95;
             const headHalfHeight = this.notesEngine.lineSpacing * 0.7;
 
@@ -3293,8 +3357,8 @@
                     return;
                 }
 
-                const position = this.getNoteVisualPosition(lineEl._layout, slide, charIndex, note.pitch);
-                const noteX = lineEl._layout.positions[charIndex];
+                const position = this.getNoteVisualPosition(lineEl._layout, slide, charIndex, note.pitch, state.lineIndex);
+                const noteX = position.x;
                 const noteY = position.y;
                 if (noteX >= left && noteX <= right && noteY >= top && noteY <= bottom) {
                     nextSelection.push({
@@ -3626,7 +3690,7 @@
                 return;
             }
 
-            const position = this.getNoteVisualPosition(metrics, slide, selectedNote.charIndex, selectedNote.note.pitch);
+            const position = this.getNoteVisualPosition(metrics, slide, selectedNote.charIndex, selectedNote.note.pitch, lineIndex);
             svgEl.innerHTML += `
                 <circle cx="${position.x}" cy="${position.y}"
                         r="${this.notesEngine.lineSpacing * 0.86}"
@@ -3676,7 +3740,7 @@
                 return;
             }
 
-            const position = this.getNoteVisualPosition(lineEl._layout, this.getCurrentSlide(), selectedNote.charIndex, selectedNote.note.pitch);
+            const position = this.getNoteVisualPosition(lineEl._layout, this.getCurrentSlide(), selectedNote.charIndex, selectedNote.note.pitch, selectedNote.lineIndex);
             const notationRect = notationEl.getBoundingClientRect();
             const cardRect = slideCard.getBoundingClientRect();
             const noteX = notationRect.left - cardRect.left + position.x;
@@ -4493,18 +4557,37 @@
                     return;
                 }
 
-                const isCurrent = this.data && this.data.hymn && getSongId(this.data.hymn) === hymnNumber;
+                // hymnMap 갱신
+                await window.HymnStorage.init({ forceRefresh: true });
+                this.hymnMap = this.buildHymnMapFromStorage() || {};
                 this.refreshSavedHymnList();
 
+                // 삭제된 곡이 현재 곡이면 다른 곡으로 전환하거나 빈 화면
+                const isCurrent = this.data && this.data.hymn && getSongId(this.data.hymn) === hymnNumber;
                 if (isCurrent) {
-                    this.loadHymn(hymnNumber);
-                    this.setStatus(`${hymnNumber} 저장본을 삭제하고 기본 곡으로 다시 불러왔습니다.`);
+                    const remaining = Object.keys(this.hymnMap);
+                    if (remaining.length > 0) {
+                        this.loadHymn(remaining[0]);
+                        this.setStatus(`"${hymnNumber}"을(를) 삭제하고 ${remaining[0]}을(를) 불러왔습니다.`);
+                    } else {
+                        this.data = null;
+                        this.slides = [];
+                        this.dom.canvas.innerHTML = `
+                            <section class="editor-slide-card">
+                                <header class="editor-slide-header">
+                                    <div class="editor-slide-title">곡이 없습니다</div>
+                                </header>
+                            </section>`;
+                        this.updateHeader();
+                        this.renderSlideList();
+                        this.setStatus(`"${hymnNumber}"을(를) 삭제했습니다.`);
+                    }
                     return;
                 }
 
-                this.setStatus(`${hymnNumber} 저장본을 삭제했습니다.`);
+                this.setStatus(`"${hymnNumber}"을(를) 삭제했습니다.`);
             } catch (error) {
-                this.setStatus("저장본 삭제 중 오류가 발생했습니다. 서버 상태를 확인해 주세요.", "warning");
+                this.setStatus("삭제 중 오류가 발생했습니다. 서버 상태를 확인해 주세요.", "warning");
             }
         }
 
@@ -4513,7 +4596,28 @@
                 return;
             }
 
-            await this.deleteSavedHymn(getSongId(this.data.hymn));
+            const songId = getSongId(this.data.hymn);
+            const title = this.data.hymn.title || songId;
+
+            this.dom.status.className = "editor-status warning";
+            this.dom.status.innerHTML = "";
+            const msg = document.createElement("span");
+            msg.textContent = `"${title}" (${songId})을(를) 삭제하시겠습니까?`;
+            const confirmBtn = document.createElement("button");
+            confirmBtn.textContent = "삭제";
+            confirmBtn.className = "editor-status-btn is-danger";
+            const cancelBtn = document.createElement("button");
+            cancelBtn.textContent = "취소";
+            cancelBtn.className = "editor-status-btn";
+            this.dom.status.append(msg, confirmBtn, cancelBtn);
+
+            cancelBtn.addEventListener("click", () => {
+                this.setStatus("");
+            });
+            confirmBtn.addEventListener("click", async () => {
+                this.setStatus("삭제 중...");
+                await this.deleteSavedHymn(songId);
+            });
         }
 
         extractImportedHymn(payload) {

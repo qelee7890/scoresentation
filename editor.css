@@ -366,6 +366,32 @@ body.editor-body {
     color: var(--editor-accent);
 }
 
+.editor-status-btn {
+    margin-left: 8px;
+    padding: 3px 12px;
+    border: 1px solid var(--editor-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--editor-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.editor-status-btn:hover {
+    background: var(--editor-text);
+    color: #fff;
+}
+
+.editor-status-btn.is-danger {
+    border-color: #d8324c;
+    color: #d8324c;
+}
+
+.editor-status-btn.is-danger:hover {
+    background: #d8324c;
+    color: #fff;
+}
+
 .editor-canvas-wrap,
 .editor-export-panel {
     margin-top: 18px;
