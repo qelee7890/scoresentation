@@ -1,6 +1,7 @@
 (function () {
     const API_BASE = "/api/setlists";
     const MEDIA_API = "/api/media";
+    const FOLDERS_API = "/api/images-folders";
 
     async function request(method, url, body) {
         const options = { method };
@@ -75,6 +76,40 @@
 
         async deleteMedia(mediaId) {
             return request("DELETE", `${MEDIA_API}/${encodeURIComponent(mediaId)}`);
+        },
+
+        async listImageFolders() {
+            const result = await request("GET", FOLDERS_API);
+            return Array.isArray(result.items) ? result.items : [];
+        },
+
+        async getImageFolder(name) {
+            const result = await request("GET", `${FOLDERS_API}/${encodeURIComponent(name)}`);
+            return { folder: result.folder, images: Array.isArray(result.images) ? result.images : [] };
+        },
+
+        async syncImageFolder({ folderName, previousName, overwrite, images }) {
+            const response = await fetch(`${FOLDERS_API}/sync`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    folderName: folderName || "",
+                    previousName: previousName || "",
+                    overwrite: !!overwrite,
+                    images: images || []
+                })
+            });
+            const text = await response.text();
+            let payload = null;
+            if (text) { try { payload = JSON.parse(text); } catch (_) { payload = { error: text }; } }
+            if (!response.ok) {
+                const error = new Error((payload && payload.error) || `HTTP ${response.status}`);
+                error.status = response.status;
+                error.conflict = !!(payload && payload.conflict);
+                error.folder = payload && payload.folder;
+                throw error;
+            }
+            return payload || {};
         },
 
         mediaUrl(filenameOrItem) {

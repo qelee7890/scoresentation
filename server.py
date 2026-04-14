@@ -4,6 +4,7 @@ import argparse
 import json
 import mimetypes
 import re
+import shutil
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -11,13 +12,14 @@ from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, quote
 
 
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_DB_PATH = ROOT_DIR / "data" / "scoresentation.db"
 DEFAULT_SETLIST_DB_PATH = ROOT_DIR / "data" / "setlists.db"
 MEDIA_DIR = ROOT_DIR / "data" / "media"
+IMAGES_DIR = ROOT_DIR / "data" / "images"
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
 ALLOWED_IMAGE_MIMES = {
     "image/jpeg", "image/png", "image/gif", "image/webp",
@@ -33,6 +35,22 @@ IMAGE_EXT_FOR_MIME = {
     "image/heic": ".heic",
     "image/heif": ".heif",
 }
+
+
+def is_safe_folder_name(name: str) -> bool:
+    if not name:
+        return False
+    stripped = name.strip()
+    if not stripped or stripped in (".", ".."):
+        return False
+    for ch in ("/", "\\", "\0"):
+        if ch in stripped:
+            return False
+    return True
+
+
+def natural_key(name: str) -> list[Any]:
+    return [int(s) if s.isdigit() else s.lower() for s in re.split(r"(\d+)", name)]
 
 
 def utc_now_iso() -> str:
@@ -474,6 +492,40 @@ class SetlistRepository:
             connection.commit()
         return media
 
+    def list_media(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT id, filename, mime, size, created_at FROM media"
+            ).fetchall()
+        return [
+            {"id": r["id"], "filename": r["filename"], "mime": r["mime"], "size": r["size"], "createdAt": r["created_at"]}
+            for r in rows
+        ]
+
+    def delete_media_rows_by_filenames(self, filenames: list[str]) -> int:
+        if not filenames:
+            return 0
+        with self._connect() as connection:
+            placeholders = ",".join("?" for _ in filenames)
+            cursor = connection.execute(
+                f"DELETE FROM media WHERE filename IN ({placeholders})",
+                filenames,
+            )
+            connection.commit()
+            return cursor.rowcount or 0
+
+    def iter_setlist_payload_json(self) -> list[str]:
+        with self._connect() as connection:
+            item_rows = connection.execute(
+                "SELECT payload_json FROM setlist_items"
+            ).fetchall()
+            setlist_rows = connection.execute(
+                "SELECT settings FROM setlists"
+            ).fetchall()
+        blobs = [r["payload_json"] or "" for r in item_rows]
+        blobs.extend([r["settings"] or "" for r in setlist_rows])
+        return blobs
+
 
 # ─────────────────────────────────────────────
 # Multipart parsing (minimal, RFC 7578)
@@ -550,11 +602,13 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
         repository: HymnRepository,
         setlists: SetlistRepository,
         media_dir: Path,
+        images_dir: Path,
         **kwargs: Any,
     ) -> None:
         self.repository = repository
         self.setlists = setlists
         self.media_dir = media_dir
+        self.images_dir = images_dir
         super().__init__(*args, directory=directory, **kwargs)
 
     def do_OPTIONS(self) -> None:
@@ -604,6 +658,27 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
             self._serve_media_file(unquote(path[len("/media/") :]))
             return
 
+        if path == "/api/images-folders":
+            json_response(self, HTTPStatus.OK, {"items": self._list_image_folders()})
+            return
+
+        if path.startswith("/api/images-folders/"):
+            name = unquote(path[len("/api/images-folders/") :]).strip("/")
+            if not is_safe_folder_name(name):
+                json_error(self, HTTPStatus.BAD_REQUEST, "폴더 이름이 올바르지 않습니다.")
+                return
+            entries = self._list_image_folder_contents(name)
+            if entries is None:
+                json_error(self, HTTPStatus.NOT_FOUND, "폴더를 찾지 못했습니다.")
+                return
+            json_response(self, HTTPStatus.OK, {"folder": name, "images": entries})
+            return
+
+        if path.startswith("/images/"):
+            rest = unquote(path[len("/images/") :])
+            self._serve_image_folder_file(rest)
+            return
+
         super().do_GET()
 
     # ── POST ──
@@ -630,6 +705,10 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/media":
             self._handle_media_upload()
+            return
+
+        if path == "/api/images-folders/sync":
+            self._handle_image_folder_sync()
             return
 
         json_error(self, HTTPStatus.NOT_FOUND, "지원하지 않는 API 경로입니다.")
@@ -785,6 +864,157 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
         media = self.setlists.register_media(filename, mime, len(data))
         json_response(self, HTTPStatus.CREATED, {"item": media})
 
+    def _list_image_folders(self) -> list[dict[str, Any]]:
+        if not self.images_dir.is_dir():
+            return []
+        result = []
+        for entry in sorted(self.images_dir.iterdir(), key=lambda p: natural_key(p.name)):
+            if not entry.is_dir() or entry.name.startswith("."):
+                continue
+            files = [f for f in entry.iterdir() if f.is_file() and not f.name.startswith(".")]
+            result.append({"name": entry.name, "count": len(files)})
+        return result
+
+    def _list_image_folder_contents(self, name: str) -> list[dict[str, str]] | None:
+        folder = self.images_dir / name
+        if not folder.is_dir():
+            return None
+        files = [f for f in folder.iterdir() if f.is_file() and not f.name.startswith(".")]
+        files.sort(key=lambda p: natural_key(p.name))
+        result = []
+        for f in files:
+            try:
+                version = int(f.stat().st_mtime)
+            except OSError:
+                version = 0
+            result.append({
+                "filename": f.name,
+                "url": f"/images/{quote(name)}/{quote(f.name)}?v={version}",
+            })
+        return result
+
+    def _serve_image_folder_file(self, relative: str) -> None:
+        relative = relative.strip("/")
+        if not relative or ".." in relative.split("/"):
+            self.send_error(HTTPStatus.BAD_REQUEST, "잘못된 경로")
+            return
+        parts = relative.split("/")
+        if len(parts) != 2:
+            self.send_error(HTTPStatus.BAD_REQUEST, "잘못된 경로")
+            return
+        folder, filename = parts
+        if not is_safe_folder_name(folder):
+            self.send_error(HTTPStatus.BAD_REQUEST, "잘못된 폴더명")
+            return
+        if "/" in filename or "\\" in filename or ".." in filename:
+            self.send_error(HTTPStatus.BAD_REQUEST, "잘못된 파일명")
+            return
+        target = self.images_dir / folder / filename
+        if not target.is_file():
+            self.send_error(HTTPStatus.NOT_FOUND, "파일 없음")
+            return
+        mime = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        try:
+            data = target.read_bytes()
+        except OSError:
+            self.send_error(HTTPStatus.INTERNAL_SERVER_ERROR, "파일 읽기 실패")
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mime)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "public, max-age=3600")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _resolve_url_to_path(self, url: str) -> Path | None:
+        if not url:
+            return None
+        path = urlparse(url).path
+        if path.startswith("/media/"):
+            name = unquote(path[len("/media/") :])
+            if "/" in name or "\\" in name or ".." in name:
+                return None
+            candidate = self.media_dir / name
+            return candidate if candidate.is_file() else None
+        if path.startswith("/images/"):
+            rest = unquote(path[len("/images/") :]).strip("/")
+            parts = rest.split("/")
+            if len(parts) != 2:
+                return None
+            folder, filename = parts
+            if not is_safe_folder_name(folder):
+                return None
+            if "/" in filename or "\\" in filename or ".." in filename:
+                return None
+            candidate = self.images_dir / folder / filename
+            return candidate if candidate.is_file() else None
+        return None
+
+    def _handle_image_folder_sync(self) -> None:
+        try:
+            payload = self._read_json_body()
+        except json.JSONDecodeError:
+            json_error(self, HTTPStatus.BAD_REQUEST, "JSON 본문을 해석하지 못했습니다.")
+            return
+        folder_name = (payload.get("folderName") or "").strip()
+        previous_name = (payload.get("previousName") or "").strip()
+        overwrite = bool(payload.get("overwrite"))
+        images = payload.get("images") if isinstance(payload.get("images"), list) else None
+        if not is_safe_folder_name(folder_name):
+            json_error(self, HTTPStatus.BAD_REQUEST, "폴더 이름이 올바르지 않습니다.")
+            return
+        if previous_name and not is_safe_folder_name(previous_name):
+            json_error(self, HTTPStatus.BAD_REQUEST, "기존 폴더 이름이 올바르지 않습니다.")
+            return
+        if images is None or not images:
+            json_error(self, HTTPStatus.BAD_REQUEST, "이미지 목록이 비어 있습니다.")
+            return
+
+        self.images_dir.mkdir(parents=True, exist_ok=True)
+        target = self.images_dir / folder_name
+        previous = (self.images_dir / previous_name) if previous_name else None
+
+        in_place = previous is not None and previous.name == folder_name
+        if not in_place and target.exists() and not overwrite:
+            json_response(self, HTTPStatus.CONFLICT, {
+                "error": "같은 이름의 폴더가 이미 존재합니다.",
+                "conflict": True,
+                "folder": folder_name,
+            })
+            return
+
+        # Resolve source paths before any mutation
+        sources: list[Path] = []
+        for img in images:
+            url = (img or {}).get("url") or ""
+            src = self._resolve_url_to_path(url)
+            if src is None:
+                json_error(self, HTTPStatus.BAD_REQUEST, f"원본 파일을 찾지 못했습니다: {url}")
+                return
+            sources.append(src)
+
+        # Stage to a temporary directory, then swap in atomically.
+        temp_dir = self.images_dir / f".sync_{uuid.uuid4().hex}"
+        try:
+            temp_dir.mkdir(parents=True, exist_ok=False)
+            for index, src in enumerate(sources, start=1):
+                ext = src.suffix or ".jpg"
+                shutil.copy(src, temp_dir / f"{index}{ext}")
+
+            # Remove previous folder (if rename) BEFORE moving temp to target
+            if previous and previous.exists() and previous.resolve() != target.resolve():
+                shutil.rmtree(previous)
+            if target.exists():
+                shutil.rmtree(target)
+            temp_dir.rename(target)
+        except Exception as error:  # noqa: BLE001
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            json_error(self, HTTPStatus.INTERNAL_SERVER_ERROR, f"폴더 동기화 실패: {error}")
+            return
+
+        entries = self._list_image_folder_contents(folder_name) or []
+        json_response(self, HTTPStatus.OK, {"folder": folder_name, "images": entries})
+
     def _serve_media_file(self, relative: str) -> None:
         if not relative or "/" in relative or "\\" in relative or ".." in relative:
             self.send_error(HTTPStatus.BAD_REQUEST, "잘못된 경로")
@@ -827,10 +1057,50 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
         return json.loads(raw_body.decode("utf-8"))
 
 
-def run_server(host: str, port: int, db_path: Path, setlist_db_path: Path, media_dir: Path) -> None:
+def cleanup_orphan_media(setlists: SetlistRepository, media_dir: Path) -> dict[str, int]:
+    """Delete media files + DB rows not referenced by any setlist payload/settings."""
+    referenced: set[str] = set()
+    pattern = re.compile(r"/media/([^\"/?#\s]+)")
+    for blob in setlists.iter_setlist_payload_json():
+        for match in pattern.findall(blob):
+            referenced.add(unquote(match))
+
+    removed_files = 0
+    removed_rows = 0
+
+    # Delete filesystem files not referenced
+    if media_dir.is_dir():
+        for entry in media_dir.iterdir():
+            if not entry.is_file():
+                continue
+            if entry.name.startswith("."):
+                continue
+            if entry.name in referenced:
+                continue
+            try:
+                entry.unlink()
+                removed_files += 1
+            except OSError:
+                pass
+
+    # Delete DB rows pointing to non-referenced or missing files
+    orphan_rows = []
+    for media in setlists.list_media():
+        filename = media["filename"]
+        if filename in referenced:
+            continue
+        orphan_rows.append(filename)
+    if orphan_rows:
+        removed_rows = setlists.delete_media_rows_by_filenames(orphan_rows)
+
+    return {"files": removed_files, "rows": removed_rows, "referenced": len(referenced)}
+
+
+def run_server(host: str, port: int, db_path: Path, setlist_db_path: Path, media_dir: Path, images_dir: Path) -> None:
     repository = HymnRepository(db_path)
     setlists = SetlistRepository(setlist_db_path)
     media_dir.mkdir(parents=True, exist_ok=True)
+    images_dir.mkdir(parents=True, exist_ok=True)
 
     def handler_factory(*args: Any, **kwargs: Any) -> ScoresentationHandler:
         return ScoresentationHandler(
@@ -839,6 +1109,7 @@ def run_server(host: str, port: int, db_path: Path, setlist_db_path: Path, media
             repository=repository,
             setlists=setlists,
             media_dir=media_dir,
+            images_dir=images_dir,
             **kwargs,
         )
 
@@ -847,12 +1118,18 @@ def run_server(host: str, port: int, db_path: Path, setlist_db_path: Path, media
     print(f"Hymn DB:     {db_path}")
     print(f"Setlist DB:  {setlist_db_path}")
     print(f"Media dir:   {media_dir}")
+    print(f"Images dir:  {images_dir}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nServer stopped.")
     finally:
         server.server_close()
+        try:
+            stats = cleanup_orphan_media(setlists, media_dir)
+            print(f"Media cleanup: removed {stats['files']} file(s), {stats['rows']} DB row(s). {stats['referenced']} referenced.")
+        except Exception as error:  # noqa: BLE001
+            print(f"Media cleanup skipped: {error}")
 
 
 def main() -> None:
@@ -862,13 +1139,23 @@ def main() -> None:
     parser.add_argument("--db", type=Path, default=DEFAULT_DB_PATH, help="Hymn SQLite DB path")
     parser.add_argument("--setlist-db", type=Path, default=DEFAULT_SETLIST_DB_PATH, help="Setlist SQLite DB path")
     parser.add_argument("--media-dir", type=Path, default=MEDIA_DIR, help="Media upload directory")
+    parser.add_argument("--images-dir", type=Path, default=IMAGES_DIR, help="Named image folders directory")
+    parser.add_argument("--cleanup-media", action="store_true", help="Remove orphan media files/rows and exit")
     args = parser.parse_args()
+
+    if args.cleanup_media:
+        setlists = SetlistRepository(args.setlist_db.resolve())
+        stats = cleanup_orphan_media(setlists, args.media_dir.resolve())
+        print(f"Removed {stats['files']} file(s), {stats['rows']} DB row(s). {stats['referenced']} referenced.")
+        return
+
     run_server(
         args.host,
         args.port,
         args.db.resolve(),
         args.setlist_db.resolve(),
         args.media_dir.resolve(),
+        args.images_dir.resolve(),
     )
 
 

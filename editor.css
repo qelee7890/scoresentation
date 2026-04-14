@@ -425,6 +425,20 @@ body.editor-body {
 .editor-canvas {
     max-width: 1100px;
     margin: 0 auto;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.editor-canvas * {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.editor-canvas input,
+.editor-canvas textarea,
+.editor-canvas [contenteditable="true"] {
+    user-select: text;
+    -webkit-user-select: text;
 }
 
 .editor-slide-card {

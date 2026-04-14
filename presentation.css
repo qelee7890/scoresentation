@@ -126,6 +126,13 @@ html, body {
     align-items: center;
     padding: 8% 5% 5% 5%;
     background: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.slide * {
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .slide.active {

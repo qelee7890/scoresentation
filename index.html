@@ -133,25 +133,39 @@
                 <h2>이미지 페이지</h2>
                 <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
             </header>
-            <div class="present-modal-body">
-                <div id="present-image-preview" class="present-image-preview">
-                    <span class="present-image-placeholder">이미지를 업로드하세요 (최대 50MB)</span>
-                </div>
-                <div class="present-image-controls">
-                    <label class="present-btn-ghost">
-                        파일 선택
-                        <input id="present-image-file" type="file" accept="image/*" hidden>
-                    </label>
-                    <div class="present-fit-toggle" role="group" aria-label="이미지 맞춤 모드">
-                        <button type="button" data-fit="contain" class="is-active">여백있게</button>
-                        <button type="button" data-fit="cover">꽉 채우기</button>
-                        <button type="button" data-fit="none">원본 크기</button>
+            <label class="present-modal-label present-image-title-label">
+                <span>제목 (선택)</span>
+                <input id="present-image-title" type="text" placeholder="예: 이미지들">
+            </label>
+            <div class="present-modal-body present-image-editor">
+                <div class="present-image-list-panel">
+                    <div class="present-image-list-header">
+                        <span>업로드된 이미지</span>
+                        <label class="present-btn-ghost present-image-add-btn" title="이미지 추가">
+                            ＋ 추가
+                            <input id="present-image-file" type="file" accept="image/*" multiple hidden>
+                        </label>
                     </div>
+                    <div id="present-image-list" class="present-image-list"></div>
+                    <p class="present-image-list-hint">여러 파일 업로드 시 연속 슬라이드 생성 · 우클릭으로 교체/순서/삭제</p>
+                    <input id="present-image-replace-file" type="file" accept="image/*" hidden>
                 </div>
-                <label class="present-modal-label">
-                    <span>캡션 (선택)</span>
-                    <input id="present-image-caption" type="text" placeholder="(선택)">
-                </label>
+                <div class="present-image-edit-panel">
+                    <div id="present-image-preview" class="present-image-preview">
+                        <span class="present-image-placeholder">이미지를 업로드하세요 (최대 50MB)</span>
+                    </div>
+                    <div class="present-image-controls">
+                        <div class="present-fit-toggle" role="group" aria-label="이미지 맞춤 모드">
+                            <button type="button" data-fit="contain" class="is-active">여백있게</button>
+                            <button type="button" data-fit="cover">꽉 채우기</button>
+                            <button type="button" data-fit="none">원본 크기</button>
+                        </div>
+                    </div>
+                    <label class="present-modal-label">
+                        <span>캡션 (선택)</span>
+                        <input id="present-image-caption" type="text" placeholder="(선택)">
+                    </label>
+                </div>
             </div>
             <footer class="present-modal-footer">
                 <button type="button" class="present-btn-ghost" data-close>취소</button>
@@ -172,6 +186,25 @@
                 <div id="present-load-list" class="present-load-list"></div>
             </div>
         </div>
+    </div>
+
+    <!-- 이미지 드래프트 인라인 메뉴 -->
+    <div id="present-image-item-menu" class="present-item-menu" hidden>
+        <button type="button" class="present-item-menu-action" data-image-action="replace">이미지 교체</button>
+        <div class="present-item-menu-divider"></div>
+        <div class="present-item-menu-group-title">순서 이동</div>
+        <div class="present-item-menu-row">
+            <button type="button" data-image-action="move" data-move="top">맨 위</button>
+            <button type="button" data-image-action="move" data-move="up">위</button>
+            <button type="button" data-image-action="move" data-move="down">아래</button>
+            <button type="button" data-image-action="move" data-move="bottom">맨 아래</button>
+        </div>
+        <div class="present-item-menu-row">
+            <label><span>N번째:</span><input type="number" min="1" id="present-image-move-target" value="1"></label>
+            <button type="button" data-image-action="move" data-move="absolute">이동</button>
+        </div>
+        <div class="present-item-menu-divider"></div>
+        <button type="button" class="present-item-menu-action is-danger" data-image-action="delete">삭제</button>
     </div>
 
     <!-- 아이템 인라인 메뉴 -->

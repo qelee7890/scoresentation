@@ -213,8 +213,13 @@
                 imageModal: document.getElementById("present-image-modal"),
                 imagePreview: document.getElementById("present-image-preview"),
                 imageFile: document.getElementById("present-image-file"),
+                imageReplaceFile: document.getElementById("present-image-replace-file"),
+                imageTitle: document.getElementById("present-image-title"),
                 imageCaption: document.getElementById("present-image-caption"),
                 imageSave: document.getElementById("present-image-save"),
+                imageList: document.getElementById("present-image-list"),
+                imageItemMenu: document.getElementById("present-image-item-menu"),
+                imageMoveTarget: document.getElementById("present-image-move-target"),
                 loadModal: document.getElementById("present-load-modal"),
                 loadList: document.getElementById("present-load-list"),
                 itemMenu: document.getElementById("present-item-menu"),
@@ -224,6 +229,7 @@
             this.songMap = {};
             this.searchIndex = [];
             this.searchQuery = "";
+            this.imageFolders = []; // [{name, count, haystack}]
 
             // 셋리스트 상태
             this.setlistId = null;            // DB에 저장된 셋리스트 id (null이면 새 셋리스트)
@@ -244,7 +250,12 @@
             // 편집 중인 아이템 (모달)
             this.editingItemId = null;
             this.editingType = null;
-            this.draftImagePayload = null;   // { mediaId, url, filename, fit, caption }
+            this.draftImages = [];           // 이미지 모달 내 다중 이미지 편집 상태
+            this.draftImageIndex = 0;
+            this.draftImageTitle = "";
+            this.draftImagePreviousFolder = ""; // 편집 전 폴더명 (rename 추적용)
+            this.imageMenuTargetIndex = -1;
+            this.imageDragSourceIndex = -1;
 
             // 드래그/이동
             this.dragSourceItemId = null;
@@ -254,14 +265,28 @@
         async init() {
             this.applyStoredTheme();
             await this.loadSongs();
+            await this.loadImageFolders();
             this.bindControls();
             this.listenForUpdates();
             this.renderAll();
         }
 
+        async loadImageFolders() {
+            try {
+                const folders = await window.SetlistStorage.listImageFolders();
+                this.imageFolders = folders.map((f) => ({
+                    name: f.name,
+                    count: f.count || 0,
+                    haystack: normalizeSearchText(f.name)
+                }));
+            } catch (_) {
+                this.imageFolders = [];
+            }
+        }
+
         applyStoredTheme() {
-            let theme = "light";
-            try { theme = localStorage.getItem("present-theme") || "light"; } catch (_) {}
+            let theme = "dark";
+            try { theme = localStorage.getItem("present-theme") || "dark"; } catch (_) {}
             document.body.classList.toggle("dark", theme === "dark");
         }
 
@@ -367,17 +392,23 @@
                 if (!this.dom.itemMenu.hidden && !this.dom.itemMenu.contains(event.target)) {
                     this.closeItemMenu();
                 }
+                if (!this.dom.imageItemMenu.hidden && !this.dom.imageItemMenu.contains(event.target)) {
+                    this.closeImageItemMenu();
+                }
             });
 
             // 검색
-            this.dom.searchForm.addEventListener("submit", (event) => {
+            this.dom.searchForm.addEventListener("submit", async (event) => {
                 event.preventDefault();
                 this.searchQuery = this.dom.searchInput.value;
+                await this.loadImageFolders();
                 this.renderSearchResults();
             });
             this.dom.searchResults.addEventListener("click", (event) => {
-                const add = event.target.closest("[data-add-song]");
-                if (add) this.addScoreItem(add.dataset.addSong);
+                const addSong = event.target.closest("[data-add-song]");
+                if (addSong) { this.addScoreItem(addSong.dataset.addSong); return; }
+                const addFolder = event.target.closest("[data-add-folder]");
+                if (addFolder) this.addImageFolderItem(addFolder.dataset.addFolder);
             });
 
             // 곡 순서: 좌클릭 = 해당 아이템 첫 슬라이드로 이동, 우클릭 = 인라인 메뉴
@@ -409,12 +440,41 @@
             this.bindModalClose(this.dom.textModal);
 
             // 이미지 모달
-            this.dom.imageFile.addEventListener("change", (event) => this.handleImageFileChange(event));
+            this.dom.imageFile.addEventListener("change", (event) => this.handleImageFilesAppend(event));
+            this.dom.imageReplaceFile.addEventListener("change", (event) => this.handleImageFileReplace(event));
             this.dom.imageModal.querySelectorAll(".present-fit-toggle button").forEach((btn) => {
                 btn.addEventListener("click", () => this.setImageFit(btn.dataset.fit));
             });
+            this.dom.imageCaption.addEventListener("input", () => {
+                const img = this.draftImages[this.draftImageIndex];
+                if (img) img.caption = this.dom.imageCaption.value;
+            });
+            this.dom.imageTitle.addEventListener("input", () => {
+                this.draftImageTitle = this.dom.imageTitle.value;
+            });
             this.dom.imageSave.addEventListener("click", () => this.saveImageModal());
             this.bindModalClose(this.dom.imageModal);
+
+            // 이미지 리스트: 좌클릭 = 선택, 우클릭 = 인라인 메뉴
+            this.dom.imageList.addEventListener("click", (event) => {
+                const entry = event.target.closest(".present-image-list-item");
+                if (!entry) return;
+                this.selectDraftImage(parseInt(entry.dataset.index, 10));
+            });
+            this.dom.imageList.addEventListener("contextmenu", (event) => {
+                const entry = event.target.closest(".present-image-list-item");
+                if (!entry) return;
+                event.preventDefault();
+                this.openImageItemMenuAt(parseInt(entry.dataset.index, 10), event.clientX, event.clientY);
+            });
+            this.dom.imageItemMenu.addEventListener("click", (event) => {
+                const btn = event.target.closest("[data-image-action]");
+                if (!btn) return;
+                const action = btn.dataset.imageAction;
+                if (action === "replace") this.handleImageMenuReplace();
+                else if (action === "delete") this.handleImageMenuDelete();
+                else if (action === "move") this.handleImageMenuMove(btn.dataset.move);
+            });
 
             // 불러오기 모달
             this.bindModalClose(this.dom.loadModal);
@@ -484,6 +544,7 @@
             this.closeModal(this.dom.imageModal);
             this.closeModal(this.dom.loadModal);
             this.closeItemMenu();
+            this.closeImageItemMenu();
             if (this.dom.addMenu) this.dom.addMenu.hidden = true;
         }
 
@@ -699,6 +760,15 @@
                 .slice(0, 10);
         }
 
+        searchImageFolders(query) {
+            const normalizedQuery = normalizeSearchText(query);
+            if (!normalizedQuery) return [];
+            const tokens = normalizedQuery.split(" ").filter(Boolean);
+            return this.imageFolders
+                .filter((f) => tokens.every((t) => f.haystack.includes(t)))
+                .slice(0, 10);
+        }
+
         renderSearchResults() {
             const normalizedQuery = normalizeSearchText(this.searchQuery);
             if (!normalizedQuery) {
@@ -707,11 +777,22 @@
             }
             const tokens = normalizedQuery.split(" ").filter(Boolean);
             const results = this.searchSongs(this.searchQuery);
-            if (results.length === 0) {
+            const folderResults = this.searchImageFolders(this.searchQuery);
+            if (results.length === 0 && folderResults.length === 0) {
                 this.dom.searchResults.innerHTML = '<div class="present-search-meta">검색 결과가 없습니다.</div>';
                 return;
             }
-            this.dom.searchResults.innerHTML = results.map((entry) => {
+            const folderHtml = folderResults.map((f) => `
+                <div class="present-search-card is-image-folder">
+                    <span class="present-search-title">
+                        <span class="present-search-folder-icon" aria-hidden="true">🖼</span>
+                        ${escapeHtml(f.name)}
+                    </span>
+                    <span class="present-search-meta">이미지 폴더 · ${f.count}장</span>
+                    <button type="button" class="present-search-add" data-add-folder="${escapeHtml(f.name)}">곡 순서에 추가</button>
+                </div>
+            `).join("");
+            const songHtml = results.map((entry) => {
                 const previewSource = entry.lyricSegments.find((segment) =>
                     tokens.some((token) => normalizeSearchText(segment).includes(token))
                 ) || getSongPreviewText(entry.song);
@@ -725,6 +806,7 @@
                     </div>
                 `;
             }).join("");
+            this.dom.searchResults.innerHTML = folderHtml + songHtml;
         }
 
         // ── 아이템 추가/삭제/편집 ──
@@ -739,6 +821,34 @@
             });
             this.markDirty();
             this.renderAll();
+        }
+
+        async addImageFolderItem(folderName) {
+            if (!folderName) return;
+            try {
+                const result = await window.SetlistStorage.getImageFolder(folderName);
+                const images = (result.images || []).map((entry) => ({
+                    mediaId: null,
+                    filename: entry.filename,
+                    url: entry.url,
+                    fit: "contain",
+                    caption: ""
+                }));
+                if (!images.length) {
+                    this.setStatus(`'${folderName}' 폴더에 이미지가 없습니다.`, "warning");
+                    return;
+                }
+                this.pushHistory();
+                this.items.push({
+                    itemId: nextLocalId(),
+                    type: "media",
+                    payload: { title: folderName, folderName, images }
+                });
+                this.markDirty();
+                this.renderAll();
+            } catch (error) {
+                this.setStatus(`폴더 불러오기 실패: ${error.message}`, "warning");
+            }
         }
 
         addItemOfType(type) {
@@ -912,80 +1022,346 @@
 
         // ── 이미지 모달 ──
 
+        getMediaImages(payload) {
+            // 신규 형식: { title, images: [...] }, 구형식: 단일 이미지 필드
+            if (!payload) return [];
+            if (Array.isArray(payload.images)) return payload.images.map((img) => deepClone(img));
+            if (payload.url) return [{
+                mediaId: payload.mediaId || null,
+                filename: payload.filename || "",
+                url: payload.url,
+                fit: payload.fit || "contain",
+                caption: payload.caption || ""
+            }];
+            return [];
+        }
+
+        getMediaTitle(payload) {
+            if (!payload) return "";
+            if (typeof payload.title === "string") return payload.title;
+            return "";
+        }
+
         openImageModal(itemId) {
             this.closeAllModals();
             this.editingItemId = itemId;
             this.editingType = "media";
             const item = itemId ? this.findItem(itemId) : null;
             if (item && item.payload) {
-                this.draftImagePayload = deepClone(item.payload);
+                this.draftImages = this.getMediaImages(item.payload);
+                this.draftImageTitle = this.getMediaTitle(item.payload);
+                this.draftImagePreviousFolder = (item.payload && item.payload.folderName) || "";
             } else {
-                this.draftImagePayload = { mediaId: null, filename: "", url: "", fit: "contain", caption: "" };
+                this.draftImages = [];
+                this.draftImageTitle = "";
+                this.draftImagePreviousFolder = "";
             }
-            this.dom.imageCaption.value = this.draftImagePayload.caption || "";
-            this.setImageFit(this.draftImagePayload.fit || "contain");
-            this.refreshImagePreview();
+            this.draftImageIndex = 0;
+            this.imageMenuTargetIndex = -1;
+            this.imageDragSourceIndex = -1;
             this.dom.imageFile.value = "";
+            this.dom.imageReplaceFile.value = "";
+            this.dom.imageTitle.value = this.draftImageTitle;
             this.dom.imageModal.hidden = false;
+            this.renderImageList();
+            this.refreshImageEditor();
         }
 
-        refreshImagePreview() {
-            const url = this.draftImagePayload && this.draftImagePayload.url;
-            if (url) {
-                this.dom.imagePreview.innerHTML = `<img src="${escapeHtml(url)}" alt="preview">`;
-                this.dom.imagePreview.style.background = this.draftImagePayload.fit === "cover" ? "#000" : "#fafafa";
-            } else {
-                this.dom.imagePreview.innerHTML = '<span class="present-image-placeholder">이미지를 업로드하세요 (최대 50MB)</span>';
+        renderImageList() {
+            const list = this.dom.imageList;
+            if (!this.draftImages.length) {
+                list.innerHTML = '<div class="present-image-list-empty">아직 업로드된 이미지가 없습니다.</div>';
+                return;
             }
+            list.innerHTML = this.draftImages.map((img, i) => {
+                const active = i === this.draftImageIndex ? "is-active" : "";
+                const name = img.caption || img.filename || "(이름 없음)";
+                const thumb = img.url ? `style="background-image:url('${escapeHtml(img.url)}')"` : "";
+                return `
+                    <div class="present-image-list-item ${active}" draggable="true" data-index="${i}">
+                        <span class="present-image-list-order">${i + 1}</span>
+                        <span class="present-image-list-thumb" ${thumb}></span>
+                        <span class="present-image-list-name">${escapeHtml(name)}</span>
+                    </div>
+                `;
+            }).join("");
+            this.bindImageListDrag();
+        }
+
+        bindImageListDrag() {
+            const entries = this.dom.imageList.querySelectorAll(".present-image-list-item");
+            entries.forEach((el) => {
+                el.addEventListener("dragstart", (event) => {
+                    this.imageDragSourceIndex = parseInt(el.dataset.index, 10);
+                    el.classList.add("is-dragging");
+                    event.dataTransfer.effectAllowed = "move";
+                });
+                el.addEventListener("dragend", () => {
+                    el.classList.remove("is-dragging");
+                    entries.forEach((e) => e.classList.remove("drag-over"));
+                    this.imageDragSourceIndex = -1;
+                });
+                el.addEventListener("dragover", (event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    el.classList.add("drag-over");
+                });
+                el.addEventListener("dragleave", () => el.classList.remove("drag-over"));
+                el.addEventListener("drop", (event) => {
+                    event.preventDefault();
+                    el.classList.remove("drag-over");
+                    const to = parseInt(el.dataset.index, 10);
+                    const from = this.imageDragSourceIndex;
+                    if (from < 0 || from === to) return;
+                    const [moved] = this.draftImages.splice(from, 1);
+                    this.draftImages.splice(to, 0, moved);
+                    if (this.draftImageIndex === from) this.draftImageIndex = to;
+                    else if (from < this.draftImageIndex && to >= this.draftImageIndex) this.draftImageIndex--;
+                    else if (from > this.draftImageIndex && to <= this.draftImageIndex) this.draftImageIndex++;
+                    this.imageDragSourceIndex = -1;
+                    this.renderImageList();
+                    this.refreshImageEditor();
+                });
+            });
+        }
+
+        selectDraftImage(index) {
+            if (index < 0 || index >= this.draftImages.length) return;
+            this.draftImageIndex = index;
+            this.renderImageList();
+            this.refreshImageEditor();
+        }
+
+        refreshImageEditor() {
+            const img = this.draftImages[this.draftImageIndex];
+            if (!img) {
+                this.dom.imagePreview.innerHTML = '<span class="present-image-placeholder">이미지를 업로드하세요 (최대 50MB)</span>';
+                this.dom.imagePreview.style.background = "";
+                this.dom.imageCaption.value = "";
+                this.setImageFitUI("contain");
+                return;
+            }
+            this.dom.imagePreview.innerHTML = `<img src="${escapeHtml(img.url)}" alt="preview">`;
+            this.dom.imagePreview.style.background = img.fit === "cover" ? "#000" : "#fafafa";
+            this.dom.imageCaption.value = img.caption || "";
+            this.setImageFitUI(img.fit || "contain");
         }
 
         setImageFit(fit) {
-            if (!this.draftImagePayload) return;
-            this.draftImagePayload.fit = fit;
+            const img = this.draftImages[this.draftImageIndex];
+            if (!img) return;
+            img.fit = fit;
+            this.setImageFitUI(fit);
+            this.dom.imagePreview.style.background = fit === "cover" ? "#000" : "#fafafa";
+        }
+
+        setImageFitUI(fit) {
             this.dom.imageModal.querySelectorAll(".present-fit-toggle button").forEach((btn) => {
                 btn.classList.toggle("is-active", btn.dataset.fit === fit);
             });
         }
 
-        async handleImageFileChange(event) {
+        async handleImageFilesAppend(event) {
+            const files = Array.from(event.target.files || []);
+            event.target.value = "";
+            if (!files.length) return;
+            const defaultFit = (this.draftImages[this.draftImageIndex] && this.draftImages[this.draftImageIndex].fit) || "contain";
+            for (const file of files) {
+                if (file.size > 50 * 1024 * 1024) {
+                    this.setStatus(`'${file.name}' 은 50MB를 초과합니다.`, "warning");
+                    continue;
+                }
+                try {
+                    const uploaded = await window.SetlistStorage.uploadImage(file);
+                    this.draftImages.push({
+                        mediaId: uploaded.id,
+                        filename: uploaded.filename,
+                        url: uploaded.url,
+                        fit: defaultFit,
+                        caption: ""
+                    });
+                    this.draftImageIndex = this.draftImages.length - 1;
+                    this.renderImageList();
+                    this.refreshImageEditor();
+                } catch (error) {
+                    this.setStatus(`업로드 실패 (${file.name}): ${error.message}`, "warning");
+                }
+            }
+        }
+
+        async handleImageFileReplace(event) {
             const file = event.target.files && event.target.files[0];
+            event.target.value = "";
             if (!file) return;
+            const targetIndex = this.imageMenuTargetIndex;
+            this.imageMenuTargetIndex = -1;
+            if (targetIndex < 0 || targetIndex >= this.draftImages.length) return;
             if (file.size > 50 * 1024 * 1024) {
                 this.setStatus("파일 크기는 50MB까지 지원합니다.", "warning");
                 return;
             }
             try {
                 const uploaded = await window.SetlistStorage.uploadImage(file);
-                this.draftImagePayload.mediaId = uploaded.id;
-                this.draftImagePayload.filename = uploaded.filename;
-                this.draftImagePayload.url = uploaded.url;
-                this.refreshImagePreview();
+                const existing = this.draftImages[targetIndex];
+                existing.mediaId = uploaded.id;
+                existing.filename = uploaded.filename;
+                existing.url = uploaded.url;
+                this.draftImageIndex = targetIndex;
+                this.renderImageList();
+                this.refreshImageEditor();
             } catch (error) {
                 this.setStatus(`업로드 실패: ${error.message}`, "warning");
             }
         }
 
-        saveImageModal() {
-            if (!this.draftImagePayload || !this.draftImagePayload.url) {
+        openImageItemMenuAt(index, clientX, clientY) {
+            this.imageMenuTargetIndex = index;
+            const menu = this.dom.imageItemMenu;
+            this.dom.imageMoveTarget.value = index + 1;
+            this.dom.imageMoveTarget.max = this.draftImages.length;
+            menu.hidden = false;
+            menu.style.visibility = "hidden";
+            menu.style.top = "0px";
+            menu.style.left = "0px";
+            const rect = menu.getBoundingClientRect();
+            let top = clientY, left = clientX;
+            if (top + rect.height > window.innerHeight - 10) top = window.innerHeight - rect.height - 10;
+            if (left + rect.width > window.innerWidth - 10) left = window.innerWidth - rect.width - 10;
+            menu.style.top = `${Math.max(10, top)}px`;
+            menu.style.left = `${Math.max(10, left)}px`;
+            menu.style.visibility = "";
+        }
+
+        closeImageItemMenu() {
+            this.dom.imageItemMenu.hidden = true;
+            // imageMenuTargetIndex는 replace 파일 선택 시까지 유지
+        }
+
+        handleImageMenuReplace() {
+            this.dom.imageItemMenu.hidden = true;
+            // imageMenuTargetIndex는 유지 — 파일 선택 후 사용
+            this.dom.imageReplaceFile.click();
+        }
+
+        handleImageMenuDelete() {
+            const idx = this.imageMenuTargetIndex;
+            this.closeImageItemMenu();
+            this.imageMenuTargetIndex = -1;
+            if (idx < 0 || idx >= this.draftImages.length) return;
+            this.draftImages.splice(idx, 1);
+            if (this.draftImageIndex >= this.draftImages.length) {
+                this.draftImageIndex = Math.max(0, this.draftImages.length - 1);
+            }
+            this.renderImageList();
+            this.refreshImageEditor();
+        }
+
+        handleImageMenuMove(mode) {
+            const idx = this.imageMenuTargetIndex;
+            if (idx < 0 || idx >= this.draftImages.length) return;
+            let target = idx;
+            const last = this.draftImages.length - 1;
+            if (mode === "top") target = 0;
+            else if (mode === "bottom") target = last;
+            else if (mode === "up") target = Math.max(0, idx - 1);
+            else if (mode === "down") target = Math.min(last, idx + 1);
+            else if (mode === "absolute") {
+                const v = parseInt(this.dom.imageMoveTarget.value, 10);
+                if (!Number.isFinite(v)) return;
+                target = Math.max(0, Math.min(last, v - 1));
+            }
+            this.closeImageItemMenu();
+            this.imageMenuTargetIndex = -1;
+            if (target === idx) return;
+            const [moved] = this.draftImages.splice(idx, 1);
+            this.draftImages.splice(target, 0, moved);
+            if (this.draftImageIndex === idx) this.draftImageIndex = target;
+            else if (idx < this.draftImageIndex && target >= this.draftImageIndex) this.draftImageIndex--;
+            else if (idx > this.draftImageIndex && target <= this.draftImageIndex) this.draftImageIndex++;
+            this.renderImageList();
+            this.refreshImageEditor();
+        }
+
+        async saveImageModal() {
+            if (!this.draftImages.length) {
                 this.setStatus("이미지를 업로드하세요.", "warning");
                 return;
             }
-            this.draftImagePayload.caption = this.dom.imageCaption.value;
+            const title = (this.draftImageTitle || "").trim();
+            let images = this.draftImages.map((img) => deepClone(img));
+            let folderName = "";
+            const previousFolder = this.draftImagePreviousFolder || "";
+
+            if (title) {
+                // 폴더 동기화: 충돌 시 사용자에게 덮어쓰기/이름 변경 선택
+                let overwrite = false;
+                let currentFolderName = title;
+                while (true) {
+                    try {
+                        const result = await window.SetlistStorage.syncImageFolder({
+                            folderName: currentFolderName,
+                            previousName: previousFolder,
+                            overwrite,
+                            images: images.map((img) => ({ url: img.url }))
+                        });
+                        const returned = result.images || [];
+                        images = images.map((img, i) => {
+                            const r = returned[i];
+                            if (!r) return img;
+                            return { ...img, mediaId: null, filename: r.filename, url: r.url };
+                        });
+                        folderName = result.folder || currentFolderName;
+                        break;
+                    } catch (error) {
+                        if (error.conflict) {
+                            const choice = window.confirm(
+                                `'${currentFolderName}' 폴더가 이미 존재합니다.\n\n확인 = 덮어쓰기\n취소 = 다른 이름 사용`
+                            );
+                            if (choice) {
+                                overwrite = true;
+                                continue;
+                            }
+                            const newName = window.prompt("새 폴더 이름을 입력하세요.", currentFolderName);
+                            if (newName === null) return; // 취소
+                            const trimmed = newName.trim();
+                            if (!trimmed) {
+                                this.setStatus("폴더 이름이 비어 있습니다.", "warning");
+                                return;
+                            }
+                            currentFolderName = trimmed;
+                            overwrite = false;
+                            continue;
+                        }
+                        this.setStatus(`폴더 저장 실패: ${error.message}`, "warning");
+                        return;
+                    }
+                }
+                // 사용자가 이름을 변경했을 수 있으므로 draft 제목도 반영
+                this.draftImageTitle = folderName;
+            }
+
             this.pushHistory();
+            const payload = {
+                title: folderName || title,
+                images
+            };
+            if (folderName) payload.folderName = folderName;
+
             if (this.editingItemId) {
                 const item = this.findItem(this.editingItemId);
-                if (item) item.payload = deepClone(this.draftImagePayload);
+                if (item) item.payload = payload;
+                else this.items.push({ itemId: nextLocalId(), type: "media", payload });
             } else {
-                this.items.push({
-                    itemId: nextLocalId(),
-                    type: "media",
-                    payload: deepClone(this.draftImagePayload)
-                });
+                this.items.push({ itemId: nextLocalId(), type: "media", payload });
             }
             this.editingItemId = null;
-            this.draftImagePayload = null;
+            this.draftImages = [];
+            this.draftImageIndex = 0;
+            this.draftImageTitle = "";
+            this.draftImagePreviousFolder = "";
             this.markDirty();
             this.closeModal(this.dom.imageModal);
+            await this.loadImageFolders(); // 검색 결과 갱신
             this.renderAll();
         }
 
@@ -1004,10 +1380,35 @@
             }
             this.dom.setlist.innerHTML = this.items.map((item, index) => this.renderItemCard(item, index)).join("");
             this.bindDragEvents();
+            this.bindMarqueeHover();
+        }
+
+        bindMarqueeHover() {
+            const cards = this.dom.setlist.querySelectorAll(".present-setlist-card");
+            cards.forEach((card) => {
+                card.addEventListener("mouseenter", () => {
+                    const el = card.querySelector(".present-setlist-title");
+                    if (!el) return;
+                    const inner = el.querySelector(".present-setlist-title-inner");
+                    const innerWidth = inner ? inner.getBoundingClientRect().width : el.scrollWidth;
+                    const outerWidth = el.getBoundingClientRect().width;
+                    const distance = Math.ceil(innerWidth - outerWidth);
+                    if (distance > 1) {
+                        el.style.setProperty("--marquee-distance", `-${distance}px`);
+                        const duration = Math.max(4, distance / 30);
+                        el.style.setProperty("--marquee-duration", `${duration.toFixed(1)}s`);
+                        el.classList.add("is-overflow");
+                    }
+                });
+                card.addEventListener("mouseleave", () => {
+                    const el = card.querySelector(".present-setlist-title");
+                    if (el) el.classList.remove("is-overflow");
+                });
+            });
         }
 
         renderItemCard(item, index) {
-            const typeIcon = { score: "♪", blank: "◻", text: "T", media: "🖼" }[item.type] || "?";
+            let typeIcon = { score: "♪", blank: "◻", text: "T", media: "🖼" }[item.type] || "?";
             let title = "", meta = "";
             if (item.type === "score") {
                 const songId = item.payload && item.payload.songId;
@@ -1023,15 +1424,18 @@
                 title = t || (b.split("\n").find(Boolean) || "(빈 텍스트)").replace(/^#+\s*/, "").slice(0, 40);
                 meta = "텍스트";
             } else if (item.type === "media") {
-                title = (item.payload && item.payload.caption) || "이미지";
-                meta = (item.payload && item.payload.fit) || "contain";
+                const images = this.getMediaImages(item.payload);
+                const customTitle = this.getMediaTitle(item.payload);
+                title = customTitle || (images.length > 1 ? "이미지들" : (images[0] && images[0].caption) || "이미지");
+                meta = `이미지 ${images.length}장`;
+                if (images.length > 1) typeIcon = "🗂";
             }
             return `
                 <div class="present-setlist-card" draggable="true" data-item-id="${item.itemId}" data-item-type="${item.type}" data-index="${index}">
                     <span class="present-setlist-order">${index + 1}</span>
                     <span class="present-setlist-type-icon">${typeIcon}</span>
                     <div class="present-setlist-info">
-                        <span class="present-setlist-title">${escapeHtml(title)}</span>
+                        <span class="present-setlist-title"><span class="present-setlist-title-inner">${escapeHtml(title)}</span></span>
                         <span class="present-setlist-meta">${escapeHtml(meta)}</span>
                     </div>
                 </div>
@@ -1104,21 +1508,27 @@
                 }];
             }
             if (item.type === "media") {
-                const url = (item.payload && item.payload.url) || "";
-                const fit = (item.payload && item.payload.fit) || "contain";
-                const caption = (item.payload && item.payload.caption) || "";
-                return [{
-                    type: "media",
-                    html: `
-                        <div class="slide slide-media" data-fit="${escapeHtml(fit)}">
-                            <div class="slide-content">
-                                ${url ? `<img src="${escapeHtml(url)}" alt="slide image">` : ""}
-                                ${caption ? `<div class="slide-media-caption">${escapeHtml(caption)}</div>` : ""}
+                const images = this.getMediaImages(item.payload);
+                const title = this.getMediaTitle(item.payload);
+                if (!images.length) return [];
+                return images.map((img) => {
+                    const fit = img.fit || "contain";
+                    const caption = img.caption || "";
+                    const url = img.url || "";
+                    return {
+                        type: "media",
+                        html: `
+                            <div class="slide slide-media" data-fit="${escapeHtml(fit)}">
+                                <div class="slide-content">
+                                    ${title ? `<div class="slide-title slide-media-title">${escapeHtml(title)}</div>` : ""}
+                                    ${url ? `<img src="${escapeHtml(url)}" alt="slide image">` : ""}
+                                    ${caption ? `<div class="slide-media-caption">${escapeHtml(caption)}</div>` : ""}
+                                </div>
                             </div>
-                        </div>
-                    `,
-                    notes: null
-                }];
+                        `,
+                        notes: null
+                    };
+                });
             }
             return [];
         }

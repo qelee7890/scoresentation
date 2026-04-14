@@ -152,6 +152,16 @@ body.present-body {
     color: var(--present-text);
 }
 
+.present-search-card.is-image-folder {
+    border-style: dashed;
+}
+
+.present-search-folder-icon {
+    display: inline-block;
+    margin-right: 4px;
+    font-size: 14px;
+}
+
 .present-search-meta {
     display: block;
     margin-top: 4px;
@@ -236,6 +246,21 @@ body.present-body {
     color: var(--present-text);
     white-space: nowrap;
     overflow: hidden;
+}
+
+.present-setlist-title-inner {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.present-setlist-title.is-overflow .present-setlist-title-inner {
+    animation: present-marquee var(--marquee-duration, 8s) linear infinite;
+}
+
+@keyframes present-marquee {
+    0%, 8% { transform: translateX(0); }
+    50%, 58% { transform: translateX(var(--marquee-distance, 0)); }
+    100% { transform: translateX(0); }
 }
 
 .present-setlist-meta {
@@ -590,6 +615,16 @@ body.present-body {
 
 .present-item-menu[hidden] { display: none; }
 
+#present-image-item-menu { z-index: 400; }
+
+.present-image-title-label {
+    margin: 14px 22px 0;
+}
+
+.present-image-list-item[draggable="true"] { cursor: grab; }
+.present-image-list-item.is-dragging { opacity: 0.4; }
+.present-image-list-item.drag-over { border-color: var(--present-accent); }
+
 .present-item-menu-action {
     font: inherit;
     font-size: 13px;
@@ -812,6 +847,116 @@ body.present-body {
     padding: 10px 12px;
     border-radius: 8px;
     overflow-x: auto;
+}
+
+.present-image-editor {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 18px;
+    align-items: start;
+}
+
+.present-image-list-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.present-image-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--present-muted);
+}
+
+.present-image-add-btn {
+    cursor: pointer;
+}
+
+.present-image-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 340px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--present-border);
+    border-radius: 10px;
+    background: var(--present-panel);
+}
+
+.present-image-list-empty {
+    padding: 20px 8px;
+    text-align: center;
+    color: var(--present-muted);
+    font-size: 13px;
+}
+
+.present-image-list-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.present-image-list-item:hover {
+    background: rgba(127, 127, 127, 0.12);
+}
+
+.present-image-list-item.is-active {
+    border-color: var(--present-accent);
+    background: rgba(127, 127, 127, 0.12);
+}
+
+.present-image-list-thumb {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    background: #ddd center/cover no-repeat;
+    flex-shrink: 0;
+}
+
+.present-image-list-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--present-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.present-image-list-order {
+    font-size: 11px;
+    color: var(--present-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.present-image-list-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--present-muted);
+}
+
+.present-image-edit-panel {
+    min-width: 0;
+}
+
+@media (max-width: 720px) {
+    .present-image-editor {
+        grid-template-columns: 1fr;
+    }
+    .present-image-list {
+        max-height: 180px;
+    }
 }
 
 .present-image-preview {
@@ -1046,6 +1191,19 @@ body.present-body {
     width: auto;
     height: auto;
     object-fit: none;
+}
+
+.present-body .slide.slide-media .slide-media-title {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 8%;
+    text-align: center;
+    color: var(--color-gray);
+    font-size: 32px;
+    letter-spacing: -0.02em;
+    pointer-events: none;
+    z-index: 2;
 }
 
 .present-body .slide.slide-media .slide-media-caption {
