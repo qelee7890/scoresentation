@@ -1,73 +1,14 @@
 (function () {
     const DEFAULT_HYMN_ID = "46";
-    const PITCH_LABEL_VERSION = 2;
-    const LEGACY_PITCH_SHIFT_DOWN = {
-        C4: "B3",
-        D4: "C4",
-        E4: "D4",
-        F4: "E4",
-        G4: "F4",
-        A4: "G4",
-        B4: "A4",
-        C5: "B4",
-        D5: "C5",
-        E5: "D5",
-        F5: "E5",
-        G5: "F5",
-        A5: "G5",
-        B5: "A5",
-        C6: "B5",
-        D6: "C6",
-        E6: "D6"
-    };
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
     }
 
-    function shiftPitchLabelsInNotes(notes) {
-        if (Array.isArray(notes)) {
-            notes.forEach((item) => shiftPitchLabelsInNotes(item));
-            return;
-        }
-
-        if (!notes || typeof notes !== "object") {
-            return;
-        }
-
-        if (typeof notes.pitch === "string") {
-            notes.pitch = LEGACY_PITCH_SHIFT_DOWN[notes.pitch] || notes.pitch;
-            return;
-        }
-
-        Object.keys(notes).forEach((key) => shiftPitchLabelsInNotes(notes[key]));
-    }
-
     function normalizeHymnPitchLabels(hymn) {
-        if (!hymn || typeof hymn !== "object") {
-            return hymn;
-        }
-
+        if (!hymn || typeof hymn !== "object") return hymn;
         hymn.id = getSongId(hymn);
         hymn.category = getSongCategory(hymn);
-
-        if (hymn.pitchLabelVersion === PITCH_LABEL_VERSION) {
-            return hymn;
-        }
-
-        if (hymn.verses && typeof hymn.verses === "object") {
-            Object.values(hymn.verses).forEach((verse) => {
-                if (verse && Array.isArray(verse.notes)) {
-                    shiftPitchLabelsInNotes(verse.notes);
-                }
-            });
-        }
-
-        if (hymn.chorus && Array.isArray(hymn.chorus.notes)) {
-            shiftPitchLabelsInNotes(hymn.chorus.notes);
-        }
-
-        hymn.pitchLabelVersion = PITCH_LABEL_VERSION;
         return hymn;
     }
 

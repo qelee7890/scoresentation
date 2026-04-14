@@ -79,22 +79,24 @@ class NotesEngine {
         this.keySignatureSpacing = 10; // 조표 간 간격
         this.keyToFirstNoteGap = 14;   // 조표와 첫 음표 사이 여백
 
-        // 음높이 -> Y 위치 매핑 (오선지 기준, B4가 가운데 줄)
-        // 좌표계: F5(top line)=0, D5=1, B4=2, G4=3, E4(bottom line)=4
+        // 음높이 -> Y 위치 매핑 (Bravura 글리프 앵커 기준 렌더링 좌표)
+        // 시각적 notehead 중심은 여기 값 + 0.5*lineSpacing 위치에 그려짐.
+        // (calculatePitch는 이 오프셋을 역으로 보정한다)
+        // 시각 좌표계: F5(top line)=0, D5=1, B4=2, G4=3, E4(bottom line)=4
         this.pitchMap = {
             'B3': 5,    // 아래 첫째 덧줄
-            'C4': 4.5,  // 아래 첫째 덧줄과 아래칸 사이
+            'C4': 4.5,
             'D4': 4,    // 아래줄
             'E4': 3.5,
-            'F4': 3,    // 둘째 줄
+            'F4': 3,
             'G4': 2.5,
-            'A4': 2,    // 가운데 줄
+            'A4': 2,    // 가운데 줄 아래 칸
             'B4': 1.5,
-            'C5': 1,    // 넷째 줄
+            'C5': 1,
             'D5': 0.5,
-            'E5': 0,    // 윗줄
+            'E5': 0,
             'F5': -0.5,
-            'G5': -1,   // 위 첫째 덧줄
+            'G5': -1,
             'A5': -1.5,
             'B5': -2,
             'C6': -2.5,
@@ -238,7 +240,7 @@ class NotesEngine {
      * @param {boolean} skipFlag - true면 꼬리 생략 (연결선 사용 시)
      * @param {boolean} skipStem - true면 기둥 생략 (연결선에서 기둥을 직접 그릴 때)
      */
-    createNote(x, pitch, duration, staffTop, color = null, skipFlag = false, skipStem = false) {
+    createNote(x, pitch, duration, staffTop, color = null, skipFlag = false, skipStem = false, accidental = null) {
         const noteColor = color || this.noteColor;
         const pitchPos = this.pitchMap[pitch] ?? 3;
 
@@ -251,6 +253,23 @@ class NotesEngine {
         const noteY = staffTop + (pitchPos * this.lineSpacing);
 
         let svg = '';
+
+        // 임시표 (sharp/flat/natural) - 음표 머리 왼쪽에 배치
+        const accGlyph = accidental === 'sharp' ? this.smufl.sharp
+            : accidental === 'flat' ? this.smufl.flat
+            : accidental === 'natural' ? this.smufl.natural
+            : null;
+        if (accGlyph) {
+            const accX = x - this.lineSpacing * 0.85;
+            svg += `
+                <text x="${accX}" y="${noteY}"
+                      font-family="Bravura, 'Bravura Text'"
+                      font-size="${this.fontSize}"
+                      fill="${noteColor}"
+                      text-anchor="middle"
+                      dominant-baseline="middle">${accGlyph}</text>
+            `;
+        }
 
         // 덧줄 (오선지 밖의 음표)
         svg += this.createLedgerLines(x, pitchPos, staffTop, noteColor);
@@ -506,7 +525,8 @@ class NotesEngine {
                     staffTop,
                     null,
                     isBeamed,  // skipFlag: 연결선 그룹이면 꼬리 생략
-                    isBeamed   // skipStem: 연결선 그룹이면 기둥도 생략 (createBeams에서 그림)
+                    isBeamed,  // skipStem: 연결선 그룹이면 기둥도 생략 (createBeams에서 그림)
+                    notes[i].accidental || null
                 );
             }
         }

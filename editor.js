@@ -4,26 +4,6 @@
     const DURATION_ORDER = ["16", "8", "q", "h", "w"];
     const CLICK_DELAY_MS = 220;
     const CHORUS_MARKER_PATTERN = /<\s*후렴\s*>/gi;
-    const PITCH_LABEL_VERSION = 2;
-    const LEGACY_PITCH_SHIFT_DOWN = {
-        C4: "B3",
-        D4: "C4",
-        E4: "D4",
-        F4: "E4",
-        G4: "F4",
-        A4: "G4",
-        B4: "A4",
-        C5: "B4",
-        D5: "C5",
-        E5: "D5",
-        F5: "E5",
-        G5: "F5",
-        A5: "G5",
-        B5: "A5",
-        C6: "B5",
-        D6: "C6",
-        E6: "D6"
-    };
     const NOTE_LENGTH_OPTIONS = [
         { label: "8분", value: "8" },
         { label: "4분", value: "q" },
@@ -68,49 +48,10 @@
         return deepClone(override);
     }
 
-    function shiftPitchLabelsInNotes(notes) {
-        if (Array.isArray(notes)) {
-            notes.forEach((item) => shiftPitchLabelsInNotes(item));
-            return;
-        }
-
-        if (!notes || typeof notes !== "object") {
-            return;
-        }
-
-        if (typeof notes.pitch === "string") {
-            notes.pitch = LEGACY_PITCH_SHIFT_DOWN[notes.pitch] || notes.pitch;
-            return;
-        }
-
-        Object.keys(notes).forEach((key) => shiftPitchLabelsInNotes(notes[key]));
-    }
-
     function normalizeHymnPitchLabels(hymn) {
-        if (!hymn || typeof hymn !== "object") {
-            return hymn;
-        }
-
+        if (!hymn || typeof hymn !== "object") return hymn;
         hymn.id = getSongId(hymn);
         hymn.category = getSongCategory(hymn);
-
-        if (hymn.pitchLabelVersion === PITCH_LABEL_VERSION) {
-            return hymn;
-        }
-
-        if (hymn.verses && typeof hymn.verses === "object") {
-            Object.values(hymn.verses).forEach((verse) => {
-                if (verse && Array.isArray(verse.notes)) {
-                    shiftPitchLabelsInNotes(verse.notes);
-                }
-            });
-        }
-
-        if (hymn.chorus && Array.isArray(hymn.chorus.notes)) {
-            shiftPitchLabelsInNotes(hymn.chorus.notes);
-        }
-
-        hymn.pitchLabelVersion = PITCH_LABEL_VERSION;
         return hymn;
     }
 
@@ -3333,14 +3274,16 @@
         }
 
         calculatePitch(localY) {
+            // 글리프 시각 중심은 렌더 Y + 0.5*lineSpacing에 위치하므로
+            // 역산 시 동일한 오프셋만큼 빼서 pitchMap과 비교한다.
+            const adjustedY = localY - this.notesEngine.lineSpacing * 0.5;
             let bestPitch = "B4";
             let bestDistance = Number.POSITIVE_INFINITY;
 
             for (const [pitch, position] of Object.entries(this.notesEngine.pitchMap)) {
-                // Pitch snapping should follow the staff grid, not the font glyph's visual center.
                 const noteY = this.notesEngine.staffTopMargin
                     + (position * this.notesEngine.lineSpacing);
-                const distance = Math.abs(noteY - localY);
+                const distance = Math.abs(noteY - adjustedY);
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     bestPitch = pitch;
@@ -3681,11 +3624,19 @@
                 return;
             }
 
+            const dotted = selectedNote.note.duration.endsWith(".");
+            const acc = selectedNote.note.accidental || null;
+            const isSharp = acc === "sharp";
+            const isFlat = acc === "flat";
+            const isNatural = acc === "natural";
             menuEl.innerHTML = `
-                <button type="button" data-note-menu-action="length">길이 변경</button>
-                <button type="button" data-note-menu-action="dot">${selectedNote.note.duration.endsWith(".") ? "점 제거" : "점 추가"}</button>
-                <button type="button" data-note-menu-action="delete">삭제</button>
-                <button type="button" data-note-menu-action="close">닫기</button>
+                <button type="button" data-note-menu-action="length" title="길이 변경">♩</button>
+                <button type="button" data-note-menu-action="dot" class="${dotted ? "is-active" : ""}" title="${dotted ? "점 제거" : "점 추가"}">•</button>
+                <button type="button" data-note-menu-action="sharp" class="${isSharp ? "is-active" : ""}" title="${isSharp ? "샵 제거" : "샵 추가"}">♯</button>
+                <button type="button" data-note-menu-action="flat" class="${isFlat ? "is-active" : ""}" title="${isFlat ? "플랫 제거" : "플랫 추가"}">♭</button>
+                <button type="button" data-note-menu-action="natural" class="${isNatural ? "is-active" : ""}" title="${isNatural ? "제자리표 제거" : "제자리표 추가"}">♮</button>
+                <button type="button" data-note-menu-action="delete" title="삭제">🗑</button>
+                <button type="button" data-note-menu-action="close" title="닫기">✕</button>
             `;
         }
 
@@ -3716,9 +3667,34 @@
                 return;
             }
 
+            if (action === "sharp" || action === "flat" || action === "natural") {
+                this.applySelectedNoteAccidentalToggle(action);
+                return;
+            }
+
             if (action === "close") {
                 this.clearSelectedNoteTarget();
             }
+        }
+
+        applySelectedNoteAccidentalToggle(kind) {
+            const selectedNote = this.getSelectedNote();
+            if (!selectedNote) return;
+            const slide = this.getCurrentSlide();
+            const note = this.getNoteAt(selectedNote.lineIndex, selectedNote.charIndex);
+            if (!slide || !note) return;
+            this.recordHistory();
+            if (note.accidental === kind) {
+                delete note.accidental;
+            } else {
+                note.accidental = kind;
+            }
+            this.commitSlideNotes(slide);
+            this.renderLine(selectedNote.lineIndex);
+            this.updateToolbarState();
+            this.renderExportJson();
+            const labels = { sharp: "샵", flat: "플랫", natural: "제자리표" };
+            this.setStatus(note.accidental ? `${labels[kind]}을(를) 추가했습니다.` : `${labels[kind]}을(를) 제거했습니다.`);
         }
 
         applySelectedNoteDuration(nextBaseDuration) {

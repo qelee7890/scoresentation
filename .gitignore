@@ -35,3 +35,6 @@ sample/
 .claude/
 nwc_bridge.js
 node_modules/
+
+# DB backups
+*.db.bak.*

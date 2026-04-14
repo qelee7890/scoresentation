@@ -18,13 +18,58 @@ function pitchStr(pos) {
     return name + oct;
 }
 
+// NoteAttr bit flags (from lib/nwc2xml/constants.js)
+const NA_SlurMask = 0x01800, NA_SlurMid = 0x01800, NA_SlurEnd = 0x01000;
+const NA_TieEnd = 0x40000;
+const NA_BeamMask = 0x00600, NA_BeamBeg = 0x00200, NA_BeamEnd = 0x00400, NA_BeamMid = 0x00600;
+
+function beamRole(obj) {
+    try {
+        const na = obj.getAttributes ? obj.getAttributes() : 0;
+        const m = na & NA_BeamMask;
+        if (m === NA_BeamBeg) return 'beg';
+        if (m === NA_BeamEnd) return 'end';
+        if (m === NA_BeamMid) return 'mid';
+    } catch {}
+    return null;
+}
+
+function isMelisma(obj) {
+    try {
+        const ls = obj.getLyricSyllable ? obj.getLyricSyllable() : 0;
+        if (ls === 2) return true; // Never consume syllable
+        if (ls === 1) return false; // Always consume
+    } catch {}
+    try {
+        const na = obj.getAttributes ? obj.getAttributes() : 0;
+        const slur = na & NA_SlurMask;
+        if (slur === NA_SlurMid || slur === NA_SlurEnd) return true;
+        if (na & NA_TieEnd) return true;
+    } catch {}
+    return false;
+}
+
+// Accidental enum: 0=Sharp, 1=Flat, 2=Natural, 3=SharpSharp, 4=FlatFlat, 5=Normal(none)
+const ACC_NAMES = ['sharp', 'flat', 'natural', 'sharpsharp', 'flatflat', null];
+function accidentalName(obj) {
+    try {
+        const a = obj.getAccidental ? obj.getAccidental() : 5;
+        return ACC_NAMES[a] || null;
+    } catch { return null; }
+}
+
 function noteInfo(obj) {
     const dur = DURS[obj.duration & 0x0F] || '?';
     const a1 = obj.attr1 ? obj.attr1[0] : 0;
     let durStr = dur;
     if (a1 & 0x01) durStr += '..';
     else if (a1 & 0x04) durStr += '.';
-    return { pitch: pitchStr(obj.pos), dur: durStr };
+    const out = { pitch: pitchStr(obj.pos), dur: durStr, melisma: isMelisma(obj) };
+    const acc = accidentalName(obj);
+    if (acc) out.accidental = acc;
+    const beam = beamRole(obj);
+    if (beam) out.beam = beam;
+    return out;
 }
 
 const filePath = process.argv[2];
@@ -38,14 +83,17 @@ const result = await parseNWC(nwcData);
 
 const staff1 = result.staffs[0];
 
-// 멜로디 추출: NoteCMObj → 마지막 child, NoteObj → 직접
+// 멜로디 추출 + 바라인 위치(다음 음표의 인덱스) 기록
 const melody = [];
+const barAt = []; // barAt[i] = 이 바라인 직후에 오는 첫 음표의 melody 인덱스
 for (const obj of staff1.objects) {
     const type = obj.constructor.name;
     if (type === 'NoteObj') {
         melody.push(noteInfo(obj));
     } else if (type === 'NoteCMObj' && obj.children?.length > 0) {
         melody.push(noteInfo(obj.children[obj.children.length - 1]));
+    } else if (type === 'BarLineObj') {
+        barAt.push(melody.length);
     }
 }
 
@@ -87,6 +135,7 @@ const output = {
     timeSig,
     melody,
     lyrics,
+    barAt,
 };
 
 console.log(JSON.stringify(output));

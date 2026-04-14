@@ -734,13 +734,27 @@ body.editor-body {
 
 .editor-note-menu button {
     font: inherit;
+    font-size: 16px;
+    line-height: 1;
     border: 1px solid var(--editor-border);
     border-radius: 999px;
     background: #fff;
     color: var(--editor-text);
-    padding: 7px 10px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     cursor: pointer;
     white-space: nowrap;
+}
+
+.editor-note-menu button.is-active {
+    background: var(--editor-accent-soft);
+    border-color: var(--editor-accent, #6b4f2a);
+    color: var(--editor-accent, #6b4f2a);
+    font-weight: 600;
 }
 
 .editor-note-menu-label {
