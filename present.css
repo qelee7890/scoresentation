@@ -3,7 +3,7 @@
     --present-panel: rgba(255, 252, 247, 0.92);
     --present-border: rgba(44, 36, 24, 0.1);
     --present-text: #201a13;
-    --present-muted: #857c70;
+    --present-muted: #5a534a;
     --present-accent: #8c4b2f;
     --present-accent-soft: rgba(140, 75, 47, 0.12);
     --present-body-bg: #fff;
@@ -20,7 +20,7 @@ body.present-body.dark {
     --present-panel: rgba(22, 22, 22, 0.92);
     --present-border: rgba(255, 255, 255, 0.12);
     --present-text: #ffffff;
-    --present-muted: #857c70;
+    --present-muted: #b0a89e;
     --present-accent: #c17352;
     --present-accent-soft: rgba(193, 115, 82, 0.18);
     --present-body-bg: #000;
@@ -425,8 +425,8 @@ body.present-body {
     z-index: 10;
     padding: 8px 14px;
     border-radius: 999px;
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
+    background: rgba(255, 255, 255, 0.7);
+    color: var(--present-text);
     font-size: 14px;
     font-variant-numeric: tabular-nums;
     pointer-events: none;
@@ -1276,57 +1276,46 @@ body.present-body {
 }
 
 .present-body .slide.slide-media {
-    padding: 0;
     background: var(--present-slide-default-bg);
 }
 
 .present-body .slide.slide-media .slide-content {
     width: 100%;
-    height: 100%;
-    padding: 0;
+    max-width: 100%;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
+.present-body .slide.slide-media .slide-media-title {
+    flex-shrink: 0;
 }
 
 .present-body .slide.slide-media img {
     display: block;
+    flex: 1;
+    min-height: 0;
     max-width: 100%;
-    max-height: 100%;
 }
 
 .present-body .slide.slide-media[data-fit="contain"] img {
     width: 100%;
-    height: 100%;
     object-fit: contain;
 }
 
 .present-body .slide.slide-media[data-fit="cover"] img {
     width: 100%;
-    height: 100%;
     object-fit: cover;
 }
 
 .present-body .slide.slide-media[data-fit="none"] img {
     max-width: 100%;
-    max-height: 100%;
     width: auto;
     height: auto;
     object-fit: none;
-}
-
-.present-body .slide.slide-media .slide-media-title {
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 8%;
-    text-align: center;
-    color: var(--color-gray);
-    font-size: 32px;
-    letter-spacing: -0.02em;
-    pointer-events: none;
-    z-index: 2;
+    flex: 0;
 }
 
 .present-body .slide.slide-media .slide-media-caption {
@@ -1392,25 +1381,37 @@ body.present-body {
     color: var(--present-muted);
 }
 
-/* 슬라이드 배경 이미지 오버레이 */
+/* 슬라이드 배경 이미지 */
 body.present-body {
     --present-bg-image: none;
-    --present-bg-overlay: rgba(255, 255, 255, 0.3);
+    --present-content-box: rgba(255, 255, 255, 0.7);
 }
 
 body.present-body.dark {
-    --present-bg-overlay: rgba(0, 0, 0, 0.3);
+    --present-content-box: rgba(0, 0, 0, 0.7);
 }
 
 body.present-body.has-bg-image .slide:not(.slide-blank) {
-    background-image: linear-gradient(var(--present-bg-overlay), var(--present-bg-overlay)), var(--present-bg-image) !important;
+    background-image: var(--present-bg-image) !important;
     background-size: cover !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
 }
 
+body.present-body.has-bg-image .slide:not(.slide-blank) .slide-content {
+    background: var(--present-content-box);
+    border-radius: 24px;
+    padding: 40px 24px 64px;
+}
+
 body.present-body.has-bg-image .slide.slide-media {
     background-color: transparent !important;
+}
+
+body.present-body.has-bg-image .slide.slide-media .slide-content {
+    background: none;
+    border-radius: 0;
+    padding: 0;
 }
 
 body.present-body.has-bg-image .slide.slide-blank {
@@ -1419,6 +1420,10 @@ body.present-body.has-bg-image .slide.slide-blank {
     background-position: center !important;
     background-repeat: no-repeat !important;
     background-color: transparent !important;
+}
+
+body.present-body.has-bg-image .slide.slide-blank .slide-content {
+    background: none;
 }
 
 /* 테마 토글 아이콘 */
@@ -1431,7 +1436,7 @@ body.present-body.dark .present-sidebar {
     --present-panel: rgba(255, 252, 247, 0.92);
     --present-border: rgba(44, 36, 24, 0.1);
     --present-text: #201a13;
-    --present-muted: #857c70;
+    --present-muted: #5a534a;
     --present-accent: #8c4b2f;
     --present-accent-soft: rgba(140, 75, 47, 0.12);
     --present-input-bg: #fff;
@@ -1447,13 +1452,15 @@ body.present-body.dark .present-sidebar {
 body.present-body.dark .slide { background: #000; color: #fff; }
 body.present-body.dark .slide .slide-title,
 body.present-body.dark .slide .hymn-title,
-body.present-body.dark .slide .hymn-number,
 body.present-body.dark .slide .hymn-subtitle,
 body.present-body.dark .slide .hymn-meta,
 body.present-body.dark .slide .lyrics-korean,
-body.present-body.dark .slide .lyrics-english { color: #fff; }
+body.present-body.dark .slide .lyrics-english,
+body.present-body.dark .slide .verse-badge,
+body.present-body.dark .slide .chorus-badge { color: #bbb; }
 body.present-body.dark .slide .verse-badge .current,
 body.present-body.dark .slide .chorus-badge .current { color: var(--present-accent); }
+body.present-body.dark .present-slide-counter { background: rgba(0, 0, 0, 0.7); }
 
 @media (max-width: 900px) {
     .present-shell {

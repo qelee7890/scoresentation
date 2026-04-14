@@ -8,7 +8,7 @@
  */
 
 // 색상 상수 (CSS 변수 --color-gray와 동일)
-const COLOR_GRAY = '#bbb';
+const COLOR_GRAY = '#666';
 
 class NotesEngine {
     constructor(options = {}) {

@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="presentation.css">
     <link rel="stylesheet" href="notes.css">
     <link rel="stylesheet" href="present.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="./node_modules/katex/dist/katex.min.css">
 </head>
 <body class="present-body">
     <div class="present-shell">
@@ -23,20 +23,20 @@
             </div>
 
             <div class="present-action-bar">
-                <button id="present-save" type="button" class="present-icon-btn" title="셋리스트 저장" aria-label="셋리스트 저장">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                <button id="present-new" type="button" class="present-icon-btn" title="새 셋리스트" aria-label="새 셋리스트">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 </button>
                 <button id="present-load" type="button" class="present-icon-btn" title="셋리스트 불러오기" aria-label="셋리스트 불러오기">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 3h11v9a2 2 0 0 1-2 2H3z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3"/></svg>
                 </button>
-                <button id="present-new" type="button" class="present-icon-btn" title="새 셋리스트" aria-label="새 셋리스트">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+                <button id="present-save" type="button" class="present-icon-btn" title="셋리스트 저장" aria-label="셋리스트 저장">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                 </button>
-                <button id="present-undo" type="button" class="present-icon-btn" title="실행 취소" aria-label="실행 취소">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 3L3 13"/></svg>
+                <button id="present-zoom-in" type="button" class="present-icon-btn" title="확대" aria-label="확대">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
                 </button>
-                <button id="present-redo" type="button" class="present-icon-btn" title="다시 실행" aria-label="다시 실행">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 13"/></svg>
+                <button id="present-zoom-out" type="button" class="present-icon-btn" title="축소" aria-label="축소">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
                 </button>
                 <button id="present-theme-toggle" type="button" class="present-icon-btn" title="라이트/다크 모드" aria-label="라이트/다크 모드">
                     <svg class="present-theme-icon-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
@@ -272,10 +272,10 @@
         <button type="button" class="present-item-menu-action is-danger" data-item-action="delete">삭제</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="./node_modules/marked/marked.min.js"></script>
+    <script src="./node_modules/dompurify/dist/purify.min.js"></script>
+    <script defer src="./node_modules/katex/dist/katex.min.js"></script>
+    <script defer src="./node_modules/katex/dist/contrib/auto-render.min.js"></script>
     <script src="storage.js"></script>
     <script src="setlistStorage.js"></script>
     <script src="notes.js"></script>

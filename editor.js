@@ -343,9 +343,9 @@
         constructor() {
             this.notesEngine = new NotesEngine({
                 staffHeight: 46,
-                staffColor: "#8d887d",
+                staffColor: "#666",
                 noteColor: "#111",
-                previewColor: "#b8b0a3"
+                previewColor: "#999"
             });
 
             this.dom = {
@@ -2640,7 +2640,8 @@
                     charIndex: target.charIndex,
                     originalPitch: target.existingNote.pitch,
                     lastPitch: target.existingNote.pitch,
-                    moved: false
+                    moved: false,
+                    snapshot: this.createHistorySnapshot()
                 };
                 event.preventDefault();
                 return;
@@ -2935,7 +2936,7 @@
 
             const slide = this.getCurrentSlide();
             if (slide && this.dragState.moved) {
-                this.recordHistory();
+                this.recordHistory(this.dragState.snapshot);
                 this.commitSlideNotes(slide);
                 this.renderExportJson();
                 this.setStatus(`음높이를 ${this.dragState.originalPitch}에서 ${this.dragState.lastPitch}(으)로 변경했습니다.`);

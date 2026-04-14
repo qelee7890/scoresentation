@@ -148,7 +148,7 @@
         const isDark = document.body.classList.contains("dark");
         return {
             staffHeight: 40,
-            staffColor: isDark ? "#666" : "#bbb",
+            staffColor: isDark ? "#bbb" : "#666",
             noteColor: isDark ? "#fff" : "#000"
         };
     }
@@ -167,8 +167,6 @@
                 saveBtn: document.getElementById("present-save"),
                 loadBtn: document.getElementById("present-load"),
                 newBtn: document.getElementById("present-new"),
-                undoBtn: document.getElementById("present-undo"),
-                redoBtn: document.getElementById("present-redo"),
                 themeToggle: document.getElementById("present-theme-toggle"),
                 bgFile: document.getElementById("present-bg-file"),
                 bgClear: document.getElementById("present-bg-clear"),
@@ -202,6 +200,8 @@
                 loadList: document.getElementById("present-load-list"),
                 itemMenu: document.getElementById("present-item-menu"),
                 moveTarget: document.getElementById("present-move-target"),
+                zoomIn: document.getElementById("present-zoom-in"),
+                zoomOut: document.getElementById("present-zoom-out"),
                 // score modal
                 scoreModal: document.getElementById("present-score-modal"),
                 scoreTitle: document.getElementById("present-score-title"),
@@ -251,6 +251,7 @@
 
         async init() {
             this.applyStoredTheme();
+            this.applyStoredZoom();
             await this.loadSongs();
             await this.loadImageFolders();
             this.bindControls();
@@ -272,8 +273,8 @@
         }
 
         applyStoredTheme() {
-            let theme = "dark";
-            try { theme = localStorage.getItem("present-theme") || "dark"; } catch (_) {}
+            let theme = "light";
+            try { theme = localStorage.getItem("present-theme") || "light"; } catch (_) {}
             document.body.classList.toggle("dark", theme === "dark");
         }
 
@@ -281,6 +282,19 @@
             const isDark = document.body.classList.toggle("dark");
             try { localStorage.setItem("present-theme", isDark ? "dark" : "light"); } catch (_) {}
             this.rebuildPresentation();
+        }
+
+        applyStoredZoom() {
+            let zoom = 1;
+            try { zoom = parseFloat(localStorage.getItem("present-zoom")) || 1; } catch (_) {}
+            this.zoomLevel = Math.max(0.5, Math.min(2, zoom));
+            this.dom.presentationContainer.style.zoom = this.zoomLevel;
+        }
+
+        adjustZoom(delta) {
+            this.zoomLevel = Math.max(0.5, Math.min(2, (this.zoomLevel || 1) + delta));
+            this.dom.presentationContainer.style.zoom = this.zoomLevel;
+            try { localStorage.setItem("present-zoom", String(this.zoomLevel)); } catch (_) {}
         }
 
         // ── 곡 데이터 로드 ──
@@ -303,6 +317,12 @@
         }
 
         listenForUpdates() {
+            // Electron IPC
+            if (window.electronAPI && window.electronAPI.onHymnSaved) {
+                window.electronAPI.onHymnSaved((songId) => this.handleExternalSave(songId));
+                return;
+            }
+            // Web fallback: BroadcastChannel
             try {
                 const channel = new BroadcastChannel("scoresentation");
                 channel.addEventListener("message", (event) => {
@@ -353,9 +373,9 @@
             this.dom.saveBtn.addEventListener("click", () => this.saveSetlist());
             this.dom.loadBtn.addEventListener("click", () => this.openLoadModal());
             this.dom.newBtn.addEventListener("click", () => this.newSetlist());
-            this.dom.undoBtn.addEventListener("click", () => this.undo());
-            this.dom.redoBtn.addEventListener("click", () => this.redo());
             this.dom.themeToggle.addEventListener("click", () => this.toggleTheme());
+            this.dom.zoomIn.addEventListener("click", () => this.adjustZoom(0.1));
+            this.dom.zoomOut.addEventListener("click", () => this.adjustZoom(-0.1));
 
             // 배경 이미지 업로드/제거
             this.dom.bgFile.addEventListener("change", (event) => this.handleBgFileChange(event));
@@ -597,8 +617,6 @@
         }
 
         updateUndoRedoButtons() {
-            this.dom.undoBtn.disabled = this.undoStack.length === 0;
-            this.dom.redoBtn.disabled = this.redoStack.length === 0;
         }
 
         markDirty() {
@@ -1833,11 +1851,11 @@
 
             let titleSlideHtml;
             if (isHymn) {
+                const numberPrefix = songRef ? `${escapeHtml(songRef)} ` : "";
                 titleSlideHtml = `
                     <div class="slide title-slide">
                         <div class="slide-content">
-                            <div class="hymn-number">${escapeHtml(songRef || getSongId(hymn))}</div>
-                            <div class="hymn-title">${escapeHtml(hymn.title || "")}</div>
+                            <div class="hymn-title">${numberPrefix}${escapeHtml(hymn.title || "")}</div>
                             ${subtitle ? `<div class="hymn-subtitle">${escapeHtml(subtitle)}</div>` : ""}
                             ${metaHtml}
                         </div>

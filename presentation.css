@@ -2,14 +2,14 @@
 
 /* CSS 변수 */
 :root {
-    --color-gray: #999;
+    --color-gray: #666;
     --color-accent: #FF6B35;
 }
 
 /* Presentation 폰트 */
 @font-face {
     font-family: 'Presentation';
-    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-7Bold.woff2') format('woff2');
+    src: url('./fonts/Freesentation-7Bold.woff2') format('woff2');
     font-weight: 700;
     font-style: normal;
 }

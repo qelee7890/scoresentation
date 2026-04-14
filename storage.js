@@ -143,18 +143,26 @@
         };
     }
 
-    async function loadRemoteStore() {
-        const payload = await requestJson(API_BASE, { cache: "no-store" });
-        const items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [];
-        const store = {};
+    function useElectronAPI() {
+        return !!(window.electronAPI && window.electronAPI.listHymns);
+    }
 
+    async function loadRemoteStore() {
+        let items;
+        if (useElectronAPI()) {
+            const payload = await window.electronAPI.listHymns();
+            items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [];
+        } else {
+            const payload = await requestJson(API_BASE, { cache: "no-store" });
+            items = Array.isArray(payload) ? payload : Array.isArray(payload.items) ? payload.items : [];
+        }
+        const store = {};
         items.forEach((item) => {
             const normalized = normalizeRemoteItem(item);
             if (normalized) {
                 store[getSongId(normalized.hymn)] = normalized;
             }
         });
-
         return store;
     }
 
@@ -176,13 +184,16 @@
             }
 
             try {
-                const payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
-                    method: "PUT",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ hymn: localEntry.hymn })
-                });
+                let payload;
+                if (useElectronAPI()) {
+                    payload = await window.electronAPI.saveHymn(songId, localEntry.hymn);
+                } else {
+                    payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ hymn: localEntry.hymn })
+                    });
+                }
                 const normalized = normalizeRemoteItem(payload.item || payload);
                 if (normalized) {
                     activeStore[songId] = normalized;
@@ -288,13 +299,16 @@
 
         if (storageMode === "database") {
             const songId = getSongId(normalized);
-            const payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
-                method: "PUT",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ hymn: normalized })
-            });
+            let payload;
+            if (useElectronAPI()) {
+                payload = await window.electronAPI.saveHymn(songId, normalized);
+            } else {
+                payload = await requestJson(`${API_BASE}/${encodeURIComponent(songId)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hymn: normalized })
+                });
+            }
             const entry = normalizeRemoteItem(payload.item || payload);
             if (!entry) {
                 throw new Error("Invalid server response");
@@ -320,16 +334,16 @@
 
         if (storageMode === "database") {
             try {
-                await requestJson(`${API_BASE}/${encodeURIComponent(id)}`, {
-                    method: "DELETE"
-                });
-            } catch (error) {
-                if (error && error.status === 404) {
-                    return false;
+                if (useElectronAPI()) {
+                    const result = await window.electronAPI.deleteHymn(id);
+                    if (!result.deleted) return false;
+                } else {
+                    await requestJson(`${API_BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });
                 }
+            } catch (error) {
+                if (error && error.status === 404) return false;
                 throw error;
             }
-
             delete activeStore[id];
             return true;
         }

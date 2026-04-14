@@ -1,9 +1,9 @@
 /* 악보 (Notes) 스타일 - Bravura SMuFL 폰트 버전 */
 
-/* Bravura 폰트 로드 (GitHub Raw) */
+/* Bravura 폰트 로드 (로컬) */
 @font-face {
     font-family: 'Bravura';
-    src: url('https://raw.githubusercontent.com/steinbergmedia/bravura/master/redist/woff/Bravura.woff') format('woff');
+    src: url('./fonts/Bravura.woff') format('woff');
     font-weight: normal;
     font-style: normal;
     font-display: swap;
@@ -11,7 +11,7 @@
 
 @font-face {
     font-family: 'Bravura Text';
-    src: url('https://raw.githubusercontent.com/steinbergmedia/bravura/master/redist/woff/BravuraText.woff') format('woff');
+    src: url('./fonts/BravuraText.woff') format('woff');
     font-weight: normal;
     font-style: normal;
     font-display: swap;
