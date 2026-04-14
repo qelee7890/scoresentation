@@ -828,7 +828,7 @@
 
         buildSlides() {
             const hymn = this.data.hymn;
-            const songTitle = getSongDisplayTitle(hymn) || hymn.title;
+            const songTitle = hymn.title || getSongDisplayTitle(hymn);
             this.normalizeChorusSlides();
             const slides = [];
             const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
@@ -901,9 +901,13 @@
         updateHeader() {
             const hymn = this.data.hymn;
             this.dom.hymnNumber.value = getSongId(hymn);
-            this.dom.hymnTitle.textContent = getSongDisplayTitle(hymn);
-            this.dom.hymnMeta.textContent = `${getSongSubtitle(hymn) ? `${getSongSubtitle(hymn)} · ` : ""}${hymn.key || "-"} · ${hymn.timeSignature || "-"} · ${hymn.composer || "-"}`;
-            document.title = `${getSongDisplayTitle(hymn)} 편집기`;
+            this.dom.hymnTitle.textContent = hymn.title || getSongId(hymn);
+            const songId = getSongId(hymn);
+            const metaParts = [hymn.key, hymn.timeSignature, hymn.composer].filter(Boolean);
+            const subtitleStr = getSongSubtitle(hymn);
+            const detailParts = [songId, subtitleStr, metaParts.join(" · ")].filter(Boolean);
+            this.dom.hymnMeta.textContent = detailParts.join(" · ");
+            document.title = `${hymn.title || songId} 편집기`;
             this.updateCurrentSlideMeta();
         }
 
@@ -963,10 +967,11 @@
                 <section class="editor-slide-card">
                     <header class="editor-slide-header">
                         <div class="editor-slide-title">${slide.title}</div>
+                        <div class="editor-slide-id">${getSongId(this.data.hymn)}</div>
                         <div class="editor-slide-submeta">
                             <span class="editor-slide-badge" data-section-badge role="button" tabindex="0" title="절/후렴 변경">${slide.badge}</span>
                             <span class="editor-slide-badge" data-order-badge role="button" tabindex="0" title="슬라이드 순서 변경">${slide.slideIndex + 1}번</span>
-                            <span data-slide-meta-value>${slide.key || "-"} · ${slide.timeSignature || "-"}</span>
+                            <span data-slide-meta-value>${[slide.key, slide.timeSignature].filter(Boolean).join(" · ") || "-"}</span>
                         </div>
                     </header>
 
@@ -3709,9 +3714,10 @@
             const canShiftLeft = selectedNote.charIndex > 0 && !hasNoteData(prevNote);
 
             const keyAcc = this.getKeyAccidentalForPitch(selectedNote.note.pitch, slide ? slide.key : null);
-            const sharpDisabled = keyAcc === "sharp";
-            const flatDisabled = keyAcc === "flat";
-            const naturalDisabled = keyAcc === null;
+            const hasPriorNatural = this.hasPriorNaturalOnSamePitch(lineNotes, selectedNote.charIndex, selectedNote.note.pitch);
+            const sharpDisabled = keyAcc === "sharp" && !hasPriorNatural;
+            const flatDisabled = keyAcc === "flat" && !hasPriorNatural;
+            const naturalDisabled = keyAcc === null && !hasPriorNatural;
 
             const dis = (cond) => cond ? "disabled" : "";
 
@@ -3737,6 +3743,18 @@
             const order = keyInfo.type === 'flat' ? flatOrder : sharpOrder;
             const affected = order.slice(0, keyInfo.count);
             return affected.includes(noteLetter) ? keyInfo.type : null;
+        }
+
+        hasPriorNaturalOnSamePitch(lineNotes, charIndex, pitch) {
+            if (!pitch || !lineNotes) return false;
+            const noteLetter = pitch.charAt(0).toUpperCase();
+            for (let i = 0; i < charIndex; i++) {
+                const n = lineNotes[i];
+                if (n && n.pitch && n.pitch.charAt(0).toUpperCase() === noteLetter && n.accidental === "natural") {
+                    return true;
+                }
+            }
+            return false;
         }
 
         handleNoteMenuAction(action) {

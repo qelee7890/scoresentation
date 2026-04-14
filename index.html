@@ -78,6 +78,7 @@
                             <button type="button" data-add-type="blank">빈 페이지</button>
                             <button type="button" data-add-type="text">텍스트</button>
                             <button type="button" data-add-type="media">이미지</button>
+                            <button type="button" data-add-type="score-new">빈 악보</button>
                         </div>
                     </div>
                 </div>
@@ -121,6 +122,51 @@
             <footer class="present-modal-footer">
                 <button type="button" class="present-btn-ghost" data-close>취소</button>
                 <button type="button" id="present-text-save" class="present-btn-primary">적용</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 악보 생성 모달 -->
+    <div id="present-score-modal" class="present-modal" hidden>
+        <div class="present-modal-backdrop" data-close></div>
+        <div class="present-modal-panel">
+            <header class="present-modal-header">
+                <h2>악보 페이지</h2>
+                <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
+            </header>
+            <div class="present-modal-body present-text-editor">
+                <div class="present-score-meta-row">
+                    <label class="present-modal-label present-score-meta-title">
+                        <span>제목</span>
+                        <input id="present-score-title" type="text" placeholder="곡 제목">
+                    </label>
+                    <label class="present-modal-label present-score-meta-small">
+                        <span>조표</span>
+                        <input id="present-score-key" type="text" placeholder="예: 2#, 3b">
+                    </label>
+                    <label class="present-modal-label present-score-meta-small">
+                        <span>박자</span>
+                        <input id="present-score-time" type="text" placeholder="예: 4/4">
+                    </label>
+                    <label class="present-modal-label present-score-meta-small">
+                        <span>작곡가</span>
+                        <input id="present-score-composer" type="text" placeholder="작곡가">
+                    </label>
+                </div>
+                <div class="present-text-grid">
+                    <label class="present-modal-label">
+                        <span>가사</span>
+                        <textarea id="present-score-body" placeholder="# 1절&#10;&#10;한글 가사 1&#10;한글 가사 2&#10;&#10;(English line 1)&#10;(English line 2)&#10;&#10;---&#10;&#10;한글 가사 3&#10;한글 가사 4&#10;&#10;# 후렴&#10;&#10;후렴 가사"></textarea>
+                    </label>
+                    <div class="present-modal-label">
+                        <span>미리보기</span>
+                        <div id="present-score-preview" class="present-score-preview"></div>
+                    </div>
+                </div>
+            </div>
+            <footer class="present-modal-footer">
+                <button type="button" class="present-btn-ghost" data-close>취소</button>
+                <button type="button" id="present-score-save" class="present-btn-primary">적용</button>
             </footer>
         </div>
     </div>

@@ -277,6 +277,8 @@ body.present-body {
     color: var(--present-muted);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
+    min-width: 1.6em;
+    text-align: right;
 }
 
 .present-setlist-actions {
@@ -849,6 +851,127 @@ body.present-body {
     overflow-x: auto;
 }
 
+/* ── 악보 생성 모달 메타 행 ── */
+
+.present-score-meta-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.present-score-meta-title {
+    flex: 3;
+    min-width: 0;
+}
+
+.present-score-meta-small {
+    flex: 1;
+    min-width: 0;
+}
+
+/* ── 악보 생성 모달 프리뷰 ── */
+
+.present-score-preview {
+    border: 1px solid var(--present-border);
+    border-radius: 10px;
+    background: var(--present-slide-default-bg);
+    min-height: 260px;
+    max-height: 420px;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Freesentation", sans-serif;
+}
+
+.present-score-preview .score-preview-slide {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 20px 24px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.present-score-preview .score-preview-slide .slide-title {
+    font-size: 11px;
+    color: var(--present-muted);
+    margin-bottom: 8px;
+}
+
+.present-score-preview .score-preview-slide .verse-badge,
+.present-score-preview .score-preview-slide .chorus-badge {
+    font-size: 10px;
+    color: var(--present-muted);
+    margin-bottom: 4px;
+}
+
+.present-score-preview .score-preview-slide .verse-badge .current,
+.present-score-preview .score-preview-slide .chorus-badge .current {
+    color: #FF6B35;
+}
+
+.present-score-preview .score-preview-slide .lyrics-korean {
+    font-size: 15px;
+    line-height: 1.7;
+    font-weight: 500;
+    color: var(--present-text);
+}
+
+.present-score-preview .score-preview-slide .lyrics-english {
+    font-size: 10px;
+    color: var(--present-muted);
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+.present-score-preview .score-preview-slide .hymn-number {
+    font-size: 36px;
+    color: var(--present-text);
+    font-weight: 400;
+    margin-bottom: 6px;
+}
+
+.present-score-preview .score-preview-slide .hymn-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--present-text);
+}
+
+.present-score-preview .score-preview-slide .hymn-subtitle {
+    font-size: 11px;
+    color: var(--present-muted);
+    margin-top: 4px;
+}
+
+.present-score-preview .score-preview-slide .hymn-meta {
+    font-size: 10px;
+    color: var(--present-muted);
+    margin-top: 8px;
+}
+
+.present-score-preview .score-preview-counter {
+    position: absolute;
+    bottom: 6px;
+    right: 10px;
+    font-size: 11px;
+    color: var(--present-muted);
+    pointer-events: none;
+}
+
+.present-score-preview .score-preview-empty {
+    color: var(--present-muted);
+    font-size: 13px;
+}
+
 .present-image-editor {
     display: grid;
     grid-template-columns: 260px 1fr;
@@ -1272,11 +1395,11 @@ body.present-body {
 /* 슬라이드 배경 이미지 오버레이 */
 body.present-body {
     --present-bg-image: none;
-    --present-bg-overlay: rgba(255, 255, 255, 0.2);
+    --present-bg-overlay: rgba(255, 255, 255, 0.3);
 }
 
 body.present-body.dark {
-    --present-bg-overlay: rgba(0, 0, 0, 0.2);
+    --present-bg-overlay: rgba(0, 0, 0, 0.3);
 }
 
 body.present-body.has-bg-image .slide:not(.slide-blank) {

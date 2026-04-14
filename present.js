@@ -201,7 +201,16 @@
                 loadModal: document.getElementById("present-load-modal"),
                 loadList: document.getElementById("present-load-list"),
                 itemMenu: document.getElementById("present-item-menu"),
-                moveTarget: document.getElementById("present-move-target")
+                moveTarget: document.getElementById("present-move-target"),
+                // score modal
+                scoreModal: document.getElementById("present-score-modal"),
+                scoreTitle: document.getElementById("present-score-title"),
+                scoreBody: document.getElementById("present-score-body"),
+                scorePreview: document.getElementById("present-score-preview"),
+                scoreSave: document.getElementById("present-score-save"),
+                scoreKey: document.getElementById("present-score-key"),
+                scoreTime: document.getElementById("present-score-time"),
+                scoreComposer: document.getElementById("present-score-composer")
             };
 
             this.songMap = {};
@@ -417,6 +426,22 @@
             this.dom.textSave.addEventListener("click", () => this.saveTextModal());
             this.bindModalClose(this.dom.textModal);
 
+            // 악보 모달
+            this.dom.scoreBody.addEventListener("input", () => this.updateScorePreview());
+            this.dom.scoreTitle.addEventListener("input", () => this.updateScorePreview());
+            this.dom.scoreKey.addEventListener("input", () => this.updateScorePreview());
+            this.dom.scoreTime.addEventListener("input", () => this.updateScorePreview());
+            this.dom.scoreComposer.addEventListener("input", () => this.updateScorePreview());
+            this.dom.scoreSave.addEventListener("click", () => this.saveScoreModal());
+            this.dom.scorePreview.addEventListener("click", (event) => {
+                const rect = this.dom.scorePreview.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                if (x < rect.width / 2) this.scorePreviewIndex = Math.max(0, this.scorePreviewIndex - 1);
+                else this.scorePreviewIndex = Math.min((this.scorePreviewSlides || []).length - 1, this.scorePreviewIndex + 1);
+                this.renderScorePreviewSlide();
+            });
+            this.bindModalClose(this.dom.scoreModal);
+
             // 이미지 모달
             this.dom.imageFile.addEventListener("change", (event) => this.handleImageFilesAppend(event));
             this.dom.imageReplaceFile.addEventListener("change", (event) => this.handleImageFileReplace(event));
@@ -519,6 +544,7 @@
         closeModal(modal) { if (modal) modal.hidden = true; }
         closeAllModals() {
             this.closeModal(this.dom.textModal);
+            this.closeModal(this.dom.scoreModal);
             this.closeModal(this.dom.imageModal);
             this.closeModal(this.dom.loadModal);
             this.closeItemMenu();
@@ -843,6 +869,8 @@
                 this.openTextModal(null);
             } else if (type === "media") {
                 this.openImageModal(null);
+            } else if (type === "score-new") {
+                this.openScoreModal(null);
             }
         }
 
@@ -995,6 +1023,282 @@
             this.editingItemId = null;
             this.markDirty();
             this.closeModal(this.dom.textModal);
+            this.renderAll();
+        }
+
+        // ── 악보 모달 ──
+
+        /**
+         * 가사 마크다운 파서.
+         *
+         * 포맷:
+         *   # 1절
+         *   한글 가사 1
+         *   한글 가사 2
+         *
+         *   (영문 가사 1)
+         *   (영문 가사 2)
+         *
+         *   ---            ← 슬라이드 구분
+         *
+         *   한글 가사 3
+         *   ...
+         *
+         *   # 후렴
+         *   ...
+         */
+        parseLyricsMarkdown(text) {
+            const lines = text.split("\n");
+            const sections = [];
+            let current = null;
+
+            for (const raw of lines) {
+                const line = raw.trimEnd();
+                const headerMatch = line.match(/^#+\s*(.+)$/);
+                if (headerMatch) {
+                    const label = headerMatch[1].trim();
+                    const chorusMatch = label.match(/^후렴$/i);
+                    const verseMatch = label.match(/^(\d+)\s*절$/);
+                    if (chorusMatch) {
+                        current = { type: "chorus", slides: [[]] };
+                    } else if (verseMatch) {
+                        current = { type: "verse", num: parseInt(verseMatch[1]), slides: [[]] };
+                    } else {
+                        current = { type: "verse", num: label, slides: [[]] };
+                    }
+                    sections.push(current);
+                    continue;
+                }
+                if (!current) {
+                    current = { type: "verse", num: 1, slides: [[]] };
+                    sections.push(current);
+                }
+                if (/^---+$/.test(line.trim())) {
+                    current.slides.push([]);
+                    continue;
+                }
+                if (line.trim()) {
+                    current.slides[current.slides.length - 1].push(line);
+                }
+            }
+
+            return sections;
+        }
+
+        sectionsToHymn(title, sections, key, timeSignature, composer) {
+            const hymn = {
+                id: "score-" + title,
+                title: title,
+                category: "song",
+                key: key || "C",
+                timeSignature: timeSignature || "4/4",
+                composer: composer || "",
+                verses: {},
+                chorus: null
+            };
+
+            for (const sec of sections) {
+                const koreanSlides = [];
+                const englishSlides = [];
+
+                for (const slideLines of sec.slides) {
+                    const korBuf = [];
+                    const engBuf = [];
+                    for (const line of slideLines) {
+                        const parenMatch = line.match(/^\((.+)\)$/);
+                        if (parenMatch) {
+                            engBuf.push(parenMatch[1].trim());
+                        } else {
+                            korBuf.push(line.trim());
+                        }
+                    }
+                    if (korBuf.length > 0 || engBuf.length > 0) {
+                        koreanSlides.push(korBuf.join("<br/>"));
+                        englishSlides.push(engBuf.join("<br/>"));
+                    }
+                }
+
+                if (sec.type === "chorus") {
+                    hymn.chorus = {
+                        korean: koreanSlides,
+                        english: englishSlides.some(e => e.replace(/<br\/>/g, "").trim()) ? englishSlides : [],
+                        notes: []
+                    };
+                } else {
+                    const num = String(sec.num || (Object.keys(hymn.verses).length + 1));
+                    hymn.verses[num] = {
+                        korean: koreanSlides,
+                        english: englishSlides.some(e => e.replace(/<br\/>/g, "").trim()) ? englishSlides : [],
+                        notes: []
+                    };
+                }
+            }
+
+            return hymn;
+        }
+
+        buildScorePreviewSlides(hymn) {
+            if (!hymn) return [];
+            return this.buildSlidesForHymn(hymn);
+        }
+
+        openScoreModal(itemId) {
+            this.closeAllModals();
+            this.editingItemId = itemId;
+            this.editingType = "score-new";
+            this.scorePreviewIndex = 0;
+            this.scorePreviewSlides = [];
+
+            if (itemId) {
+                const item = this.findItem(itemId);
+                if (item && item.type === "score" && item.payload && item.payload.songId) {
+                    const hymn = this.songMap[item.payload.songId];
+                    if (hymn) {
+                        this.dom.scoreTitle.value = hymn.title || "";
+                        this.dom.scoreKey.value = hymn.key || "";
+                        this.dom.scoreTime.value = hymn.timeSignature || "";
+                        this.dom.scoreComposer.value = hymn.composer || "";
+                        this.dom.scoreBody.value = this.hymnToLyricsMarkdown(hymn);
+                    } else {
+                        this.dom.scoreTitle.value = "";
+                        this.dom.scoreKey.value = "";
+                        this.dom.scoreTime.value = "";
+                        this.dom.scoreComposer.value = "";
+                        this.dom.scoreBody.value = "";
+                    }
+                }
+            } else {
+                this.dom.scoreTitle.value = "";
+                this.dom.scoreKey.value = "";
+                this.dom.scoreTime.value = "";
+                this.dom.scoreComposer.value = "";
+                this.dom.scoreBody.value = "";
+            }
+
+            this.updateScorePreview();
+            this.dom.scoreModal.hidden = false;
+            setTimeout(() => this.dom.scoreTitle.focus(), 40);
+        }
+
+        hymnToLyricsMarkdown(hymn) {
+            const lines = [];
+            const writeSection = (korSlides, engSlides) => {
+                for (let i = 0; i < korSlides.length; i++) {
+                    if (i > 0) lines.push("", "---", "");
+                    const korLines = (korSlides[i] || "").split(/<br\s*\/?>/gi);
+                    for (const k of korLines) {
+                        if (k.trim()) lines.push(k);
+                    }
+                    const engLines = ((engSlides || [])[i] || "").split(/<br\s*\/?>/gi).filter(e => e.trim());
+                    if (engLines.length > 0) {
+                        lines.push("");
+                        for (const e of engLines) lines.push(`(${e.trim()})`);
+                    }
+                }
+            };
+
+            if (hymn.verses) {
+                const nums = Object.keys(hymn.verses).sort((a, b) => parseInt(a) - parseInt(b));
+                for (const num of nums) {
+                    const verse = hymn.verses[num];
+                    lines.push(`# ${num}절`);
+                    lines.push("");
+                    writeSection(verse.korean || [], verse.english || []);
+                    lines.push("");
+                }
+            }
+            if (hymn.chorus && hymn.chorus.korean && hymn.chorus.korean.length) {
+                lines.push("# 후렴");
+                lines.push("");
+                writeSection(hymn.chorus.korean, hymn.chorus.english || []);
+            }
+            return lines.join("\n");
+        }
+
+        getScoreModalMeta() {
+            return {
+                key: this.dom.scoreKey.value.trim(),
+                time: this.dom.scoreTime.value.trim(),
+                composer: this.dom.scoreComposer.value.trim()
+            };
+        }
+
+        updateScorePreview() {
+            const title = this.dom.scoreTitle.value.trim();
+            const body = this.dom.scoreBody.value;
+            if (!title && !body.trim()) {
+                this.scorePreviewSlides = [];
+                this.dom.scorePreview.innerHTML = '<div class="score-preview-empty">제목과 가사를 입력하세요.</div>';
+                return;
+            }
+            const meta = this.getScoreModalMeta();
+            const sections = this.parseLyricsMarkdown(body);
+            const hymn = this.sectionsToHymn(title || "(제목 없음)", sections, meta.key, meta.time, meta.composer);
+            this.scorePreviewSlides = this.buildScorePreviewSlides(hymn);
+            if (this.scorePreviewIndex >= this.scorePreviewSlides.length) {
+                this.scorePreviewIndex = Math.max(0, this.scorePreviewSlides.length - 1);
+            }
+            this.renderScorePreviewSlide();
+        }
+
+        renderScorePreviewSlide() {
+            const slides = this.scorePreviewSlides || [];
+            if (slides.length === 0) {
+                this.dom.scorePreview.innerHTML = '<div class="score-preview-empty">제목과 가사를 입력하세요.</div>';
+                return;
+            }
+            const idx = Math.max(0, Math.min(this.scorePreviewIndex, slides.length - 1));
+            const slide = slides[idx];
+            const tmp = document.createElement("div");
+            tmp.innerHTML = slide.html;
+            const content = tmp.querySelector(".slide-content");
+            this.dom.scorePreview.innerHTML =
+                `<div class="score-preview-slide">${content ? content.innerHTML : slide.html}</div>` +
+                `<div class="score-preview-counter">${idx + 1} / ${slides.length}</div>`;
+        }
+
+        async saveScoreModal() {
+            const title = this.dom.scoreTitle.value.trim();
+            const body = this.dom.scoreBody.value;
+            if (!title) {
+                this.setStatus("제목을 입력하세요.", "warning");
+                return;
+            }
+            if (!body.trim()) {
+                this.setStatus("가사를 입력하세요.", "warning");
+                return;
+            }
+
+            const meta = this.getScoreModalMeta();
+            const sections = this.parseLyricsMarkdown(body);
+            const hymn = this.sectionsToHymn(title, sections, meta.key, meta.time, meta.composer);
+            const songId = hymn.id;
+
+            try {
+                await window.HymnStorage.saveHymn(hymn);
+                this.songMap[songId] = hymn;
+                this.searchIndex = Object.keys(this.songMap)
+                    .map((id) => buildSongSearchEntry(this.songMap[id]))
+                    .filter((entry) => !!entry.id);
+            } catch (err) {
+                this.setStatus("저장 실패: " + err.message, "error");
+                return;
+            }
+
+            this.pushHistory();
+            if (this.editingItemId) {
+                const item = this.findItem(this.editingItemId);
+                if (item) item.payload = { songId };
+            } else {
+                this.items.push({
+                    itemId: nextLocalId(),
+                    type: "score",
+                    payload: { songId }
+                });
+            }
+            this.editingItemId = null;
+            this.markDirty();
+            this.closeModal(this.dom.scoreModal);
             this.renderAll();
         }
 
@@ -1391,7 +1695,7 @@
             if (item.type === "score") {
                 const songId = item.payload && item.payload.songId;
                 const hymn = songId ? this.songMap[songId] : null;
-                title = hymn ? getSongDisplayTitle(hymn) : (songId ? `(누락) ${songId}` : "(없음)");
+                title = hymn ? (hymn.title || songId) : (songId ? `(누락) ${songId}` : "(없음)");
                 meta = songId || "";
             } else if (item.type === "blank") {
                 title = "빈 페이지";
@@ -1516,25 +1820,42 @@
             const showNotes = hasRenderableNotes(hymn);
             const songRef = getSongReference(hymn);
             const songTitle = getSongDisplayTitle(hymn);
+            const isHymn = isHymnSong(hymn);
 
-            const subtitle = getSongCategory(hymn) === "hymn" && hymn.newNumber
+            const subtitle = isHymn && hymn.newNumber
                 ? `새찬송가 ${hymn.newNumber}장`
                 : (hymn.subtitle || "");
 
-            slides.push({
-                type: "title",
-                html: `
+            const metaParts = [hymn.key, hymn.timeSignature, hymn.composer].filter(Boolean);
+            const metaHtml = metaParts.length > 0
+                ? `<div class="hymn-meta">${escapeHtml(metaParts.join(" | "))}</div>`
+                : "";
+
+            let titleSlideHtml;
+            if (isHymn) {
+                titleSlideHtml = `
                     <div class="slide title-slide">
                         <div class="slide-content">
                             <div class="hymn-number">${escapeHtml(songRef || getSongId(hymn))}</div>
                             <div class="hymn-title">${escapeHtml(hymn.title || "")}</div>
                             ${subtitle ? `<div class="hymn-subtitle">${escapeHtml(subtitle)}</div>` : ""}
-                            <div class="hymn-meta">${escapeHtml(hymn.key || "")} | ${escapeHtml(hymn.timeSignature || "")} | ${escapeHtml(hymn.composer || "")}</div>
+                            ${metaHtml}
                         </div>
                     </div>
-                `,
-                notes: null
-            });
+                `;
+            } else {
+                titleSlideHtml = `
+                    <div class="slide title-slide">
+                        <div class="slide-content">
+                            <div class="hymn-title">${escapeHtml(hymn.title || "")}</div>
+                            ${subtitle ? `<div class="hymn-subtitle">${escapeHtml(subtitle)}</div>` : ""}
+                            ${metaHtml}
+                        </div>
+                    </div>
+                `;
+            }
+
+            slides.push({ type: "title", html: titleSlideHtml, notes: null });
 
             if (hymn.verses) {
                 const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a) - parseInt(b));
