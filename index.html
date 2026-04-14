@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="presentation.css">
     <link rel="stylesheet" href="notes.css">
     <link rel="stylesheet" href="present.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
 </head>
 <body class="present-body">
     <div class="present-shell">
@@ -14,6 +15,33 @@
             <div class="present-brand">
                 <div class="present-eyebrow">Scoresentation</div>
                 <h1>프레젠테이션</h1>
+            </div>
+
+            <div class="present-title-row">
+                <input id="present-setlist-name" class="present-setlist-name" type="text" placeholder="셋 제목 (예: 2026-04-19 주일예배)" autocomplete="off">
+                <span id="present-dirty-dot" class="present-dirty-dot" hidden title="저장되지 않은 변경 사항"></span>
+            </div>
+
+            <div class="present-action-bar">
+                <button id="present-save" type="button" class="present-icon-btn" title="셋리스트 저장" aria-label="셋리스트 저장">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                </button>
+                <button id="present-load" type="button" class="present-icon-btn" title="셋리스트 불러오기" aria-label="셋리스트 불러오기">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 3h11v9a2 2 0 0 1-2 2H3z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3"/></svg>
+                </button>
+                <button id="present-new" type="button" class="present-icon-btn" title="새 셋리스트" aria-label="새 셋리스트">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
+                </button>
+                <button id="present-undo" type="button" class="present-icon-btn" title="실행 취소" aria-label="실행 취소">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 3L3 13"/></svg>
+                </button>
+                <button id="present-redo" type="button" class="present-icon-btn" title="다시 실행" aria-label="다시 실행">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 13"/></svg>
+                </button>
+                <button id="present-theme-toggle" type="button" class="present-icon-btn" title="라이트/다크 모드" aria-label="라이트/다크 모드">
+                    <svg class="present-theme-icon-light" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                    <svg class="present-theme-icon-dark" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+                </button>
             </div>
 
             <div class="present-panel">
@@ -26,12 +54,38 @@
             </div>
 
             <div class="present-panel">
-                <div class="present-panel-title">곡 순서</div>
+                <div class="present-panel-header">
+                    <div class="present-panel-title">배경 이미지</div>
+                    <div class="present-bg-actions">
+                        <label class="present-bg-upload-btn" title="배경 이미지 업로드">
+                            업로드
+                            <input id="present-bg-file" type="file" accept="image/*" hidden>
+                        </label>
+                        <button id="present-bg-clear" type="button" class="present-bg-clear-btn" hidden>제거</button>
+                    </div>
+                </div>
+                <div id="present-bg-preview" class="present-bg-preview">
+                    <span class="present-bg-placeholder">설정된 배경 없음 (최대 50MB)</span>
+                </div>
+            </div>
+
+            <div class="present-panel">
+                <div class="present-panel-header">
+                    <div class="present-panel-title">곡 순서</div>
+                    <div class="present-add-menu-wrap">
+                        <button id="present-add-item" type="button" class="present-add-btn" title="아이템 추가" aria-label="아이템 추가">＋ 추가</button>
+                        <div id="present-add-menu" class="present-add-menu" hidden>
+                            <button type="button" data-add-type="blank">빈 페이지</button>
+                            <button type="button" data-add-type="text">텍스트</button>
+                            <button type="button" data-add-type="media">이미지</button>
+                        </div>
+                    </div>
+                </div>
                 <div id="present-setlist" class="present-setlist"></div>
             </div>
         </aside>
 
-        <button id="present-toggle-sidebar" class="present-toggle-sidebar" type="button" title="사이드바 접기/펼치기">◀</button>
+        <button id="present-toggle-sidebar" class="present-toggle-sidebar" type="button" title="사이드바 접기/펼치기" aria-label="사이드바 접기/펼치기"></button>
 
         <main class="present-main">
             <div id="present-status" class="present-status" hidden></div>
@@ -40,7 +94,111 @@
         </main>
     </div>
 
+    <!-- 텍스트 편집 모달 -->
+    <div id="present-text-modal" class="present-modal" hidden>
+        <div class="present-modal-backdrop" data-close></div>
+        <div class="present-modal-panel">
+            <header class="present-modal-header">
+                <h2>텍스트 페이지</h2>
+                <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
+            </header>
+            <div class="present-modal-body present-text-editor">
+                <label class="present-modal-label">
+                    <span>제목 (선택)</span>
+                    <input id="present-text-title" type="text" placeholder="(선택)">
+                </label>
+                <div class="present-text-grid">
+                    <label class="present-modal-label">
+                        <span>본문 (마크다운)</span>
+                        <textarea id="present-text-body" placeholder="# 제목&#10;&#10;본문 내용 (**굵게**, *기울임*, 목록 등)"></textarea>
+                    </label>
+                    <div class="present-modal-label">
+                        <span>미리보기</span>
+                        <div id="present-text-preview" class="present-text-preview markdown-body"></div>
+                    </div>
+                </div>
+            </div>
+            <footer class="present-modal-footer">
+                <button type="button" class="present-btn-ghost" data-close>취소</button>
+                <button type="button" id="present-text-save" class="present-btn-primary">적용</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 이미지 편집 모달 -->
+    <div id="present-image-modal" class="present-modal" hidden>
+        <div class="present-modal-backdrop" data-close></div>
+        <div class="present-modal-panel">
+            <header class="present-modal-header">
+                <h2>이미지 페이지</h2>
+                <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
+            </header>
+            <div class="present-modal-body">
+                <div id="present-image-preview" class="present-image-preview">
+                    <span class="present-image-placeholder">이미지를 업로드하세요 (최대 50MB)</span>
+                </div>
+                <div class="present-image-controls">
+                    <label class="present-btn-ghost">
+                        파일 선택
+                        <input id="present-image-file" type="file" accept="image/*" hidden>
+                    </label>
+                    <div class="present-fit-toggle" role="group" aria-label="이미지 맞춤 모드">
+                        <button type="button" data-fit="contain" class="is-active">여백있게</button>
+                        <button type="button" data-fit="cover">꽉 채우기</button>
+                        <button type="button" data-fit="none">원본 크기</button>
+                    </div>
+                </div>
+                <label class="present-modal-label">
+                    <span>캡션 (선택)</span>
+                    <input id="present-image-caption" type="text" placeholder="(선택)">
+                </label>
+            </div>
+            <footer class="present-modal-footer">
+                <button type="button" class="present-btn-ghost" data-close>취소</button>
+                <button type="button" id="present-image-save" class="present-btn-primary">적용</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 불러오기 모달 -->
+    <div id="present-load-modal" class="present-modal" hidden>
+        <div class="present-modal-backdrop" data-close></div>
+        <div class="present-modal-panel present-modal-panel-narrow">
+            <header class="present-modal-header">
+                <h2>셋리스트 불러오기</h2>
+                <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
+            </header>
+            <div class="present-modal-body">
+                <div id="present-load-list" class="present-load-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 아이템 인라인 메뉴 -->
+    <div id="present-item-menu" class="present-item-menu" hidden>
+        <button type="button" class="present-item-menu-action" data-item-action="edit">편집</button>
+        <div class="present-item-menu-divider"></div>
+        <div class="present-item-menu-group-title">순서 이동</div>
+        <div class="present-item-menu-row">
+            <button type="button" data-item-action="move" data-move="top">맨 위</button>
+            <button type="button" data-item-action="move" data-move="up">위</button>
+            <button type="button" data-item-action="move" data-move="down">아래</button>
+            <button type="button" data-item-action="move" data-move="bottom">맨 아래</button>
+        </div>
+        <div class="present-item-menu-row">
+            <label><span>N번째:</span><input type="number" min="1" id="present-move-target" value="1"></label>
+            <button type="button" data-item-action="move" data-move="absolute">이동</button>
+        </div>
+        <div class="present-item-menu-divider"></div>
+        <button type="button" class="present-item-menu-action is-danger" data-item-action="delete">삭제</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.11/dist/purify.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <script src="storage.js"></script>
+    <script src="setlistStorage.js"></script>
     <script src="notes.js"></script>
     <script src="presentation.js"></script>
     <script src="present.js"></script>
