@@ -3,24 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>46장. 찬양하라 복되신 구세주 예수 - 악보 프레젠테이션</title>
+    <title>프레젠테이션 - Scoresentation</title>
     <link rel="stylesheet" href="presentation.css">
     <link rel="stylesheet" href="notes.css">
+    <link rel="stylesheet" href="present.css">
 </head>
-<body>
-    <form id="hymn-picker" class="hymn-picker" autocomplete="off">
-        <label for="hymn-number">곡 ID</label>
-        <input id="hymn-number" name="song" type="text" placeholder="46 또는 ccm-amazing-grace">
-        <button type="submit">열기</button>
-        <div id="hymn-picker-title" class="hymn-picker-title"></div>
-    </form>
+<body class="present-body">
+    <div class="present-shell">
+        <aside class="present-sidebar" id="present-sidebar">
+            <div class="present-brand">
+                <div class="present-eyebrow">Scoresentation</div>
+                <h1>프레젠테이션</h1>
+            </div>
 
-    <div id="app-status" class="app-status" hidden></div>
-    <div id="presentation" class="presentation"></div>
+            <div class="present-panel">
+                <div class="present-panel-title">곡 검색</div>
+                <form id="present-search-form" class="present-row" autocomplete="off">
+                    <input id="present-search-input" class="present-search-input" type="search" placeholder="제목 또는 가사 검색">
+                    <button type="submit">검색</button>
+                </form>
+                <div id="present-search-results" class="present-search-results"></div>
+            </div>
+
+            <div class="present-panel">
+                <div class="present-panel-title">곡 순서</div>
+                <div id="present-setlist" class="present-setlist"></div>
+            </div>
+        </aside>
+
+        <button id="present-toggle-sidebar" class="present-toggle-sidebar" type="button" title="사이드바 접기/펼치기">◀</button>
+
+        <main class="present-main">
+            <div id="present-status" class="present-status" hidden></div>
+            <div id="presentation" class="presentation present-presentation"></div>
+            <div id="present-slide-counter" class="present-slide-counter"></div>
+        </main>
+    </div>
 
     <script src="storage.js"></script>
     <script src="notes.js"></script>
     <script src="presentation.js"></script>
-    <script src="app.js"></script>
+    <script src="present.js"></script>
 </body>
 </html>

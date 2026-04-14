@@ -1,0 +1,381 @@
+:root {
+    --present-bg: #f4efe6;
+    --present-panel: rgba(255, 252, 247, 0.92);
+    --present-border: rgba(44, 36, 24, 0.1);
+    --present-text: #201a13;
+    --present-muted: #857c70;
+    --present-accent: #8c4b2f;
+    --present-accent-soft: rgba(140, 75, 47, 0.12);
+}
+
+body.present-body {
+    overflow: hidden;
+    background: #fff;
+    color: var(--present-text);
+    height: 100vh;
+}
+
+.present-shell {
+    display: flex;
+    height: 100vh;
+    position: relative;
+    overflow: hidden;
+}
+
+.present-sidebar {
+    width: 320px;
+    min-width: 320px;
+    padding: 28px 22px;
+    border-right: 1px solid var(--present-border);
+    background: rgba(251, 246, 239, 0.88);
+    backdrop-filter: blur(12px);
+    overflow-y: auto;
+    transform: translateX(0);
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                margin-left 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.present-shell.sidebar-collapsed .present-sidebar {
+    transform: translateX(-100%);
+    margin-left: -320px;
+}
+
+.present-brand h1 {
+    font-size: 28px;
+    line-height: 1.1;
+    margin-bottom: 10px;
+}
+
+.present-eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--present-accent);
+    margin-bottom: 12px;
+}
+
+.present-panel {
+    margin-top: 22px;
+    padding: 16px;
+    border: 1px solid var(--present-border);
+    border-radius: 18px;
+    background: var(--present-panel);
+    box-shadow: 0 12px 30px rgba(77, 55, 27, 0.06);
+}
+
+.present-panel-title {
+    font-size: 14px;
+    color: var(--present-muted);
+    margin-bottom: 10px;
+}
+
+.present-row {
+    display: flex;
+    gap: 8px;
+}
+
+.present-row input,
+.present-row button {
+    font: inherit;
+    border-radius: 999px;
+}
+
+.present-row input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid var(--present-border);
+    background: #fff;
+    padding: 10px 14px;
+}
+
+.present-row button {
+    border: none;
+    background: #17120d;
+    color: #fff;
+    padding: 10px 14px;
+    cursor: pointer;
+}
+
+.present-search-input {
+    width: 100%;
+    font: inherit;
+    border: 1px solid var(--present-border);
+    border-radius: 14px;
+    background: #fff;
+    padding: 10px 14px;
+}
+
+.present-search-results {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.present-search-card {
+    padding: 12px 14px;
+    border: 1px solid var(--present-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+}
+
+.present-search-title {
+    display: block;
+    font-size: 15px;
+    color: var(--present-text);
+}
+
+.present-search-meta {
+    display: block;
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--present-muted);
+}
+
+.present-search-snippet {
+    display: block;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--present-muted);
+    margin-top: 4px;
+}
+
+.present-search-add {
+    width: 100%;
+    margin-top: 8px;
+    font: inherit;
+    border: 1px solid var(--present-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--present-text);
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+.present-search-add:hover {
+    background: var(--present-accent-soft);
+}
+
+/* 곡 순서 */
+.present-setlist {
+    display: grid;
+    gap: 8px;
+    min-height: 40px;
+}
+
+.present-setlist-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--present-border);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    cursor: grab;
+    user-select: none;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.present-setlist-card:active {
+    cursor: grabbing;
+}
+
+.present-setlist-card.is-active {
+    border-color: rgba(140, 75, 47, 0.32);
+    background: var(--present-accent-soft);
+}
+
+.present-setlist-card.is-dragging {
+    opacity: 0.5;
+}
+
+.present-setlist-card.drag-over {
+    border-color: var(--present-accent);
+    transform: translateY(-2px);
+}
+
+.present-setlist-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.present-setlist-title {
+    display: block;
+    font-size: 15px;
+    color: var(--present-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.present-setlist-meta {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--present-muted);
+}
+
+.present-setlist-order {
+    font-size: 13px;
+    color: var(--present-muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+}
+
+.present-setlist-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.present-setlist-edit,
+.present-setlist-delete {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--present-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--present-muted);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 120ms ease, border-color 120ms ease;
+}
+
+.present-setlist-edit:hover {
+    color: var(--present-accent);
+    border-color: var(--present-accent);
+}
+
+.present-setlist-delete:hover {
+    color: #c0392b;
+    border-color: #c0392b;
+}
+
+.present-setlist-empty {
+    font-size: 13px;
+    color: var(--present-muted);
+    text-align: center;
+    padding: 12px 0;
+}
+
+/* 사이드바 토글 */
+.present-toggle-sidebar {
+    flex-shrink: 0;
+    align-self: start;
+    margin-top: 12px;
+    margin-left: 6px;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--present-border);
+    border-radius: 999px;
+    background: rgba(255, 252, 247, 0.95);
+    color: var(--present-muted);
+    font-size: 12px;
+    cursor: pointer;
+    z-index: 10;
+    transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.present-shell.sidebar-collapsed .present-toggle-sidebar {
+    transform: rotate(180deg);
+}
+
+/* 메인 영역 */
+.present-main {
+    position: relative;
+    overflow: hidden;
+    height: 100vh;
+    flex: 1;
+    min-width: 0;
+}
+
+.present-main .presentation {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+/* presentation.css의 100vw 기본 크기 덮어쓰기 */
+.present-body .presentation {
+    width: 100% !important;
+    height: 100vh !important;
+}
+
+/* 프레젠테이션 슬라이드가 부모 크기에 맞추도록 */
+.present-body .slide {
+    padding: 6% 4% 4% 4%;
+}
+
+.present-status {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 20;
+    max-width: min(640px, calc(100vw - 40px));
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.94);
+    color: #222;
+    font-size: 14px;
+    line-height: 1.4;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.present-status.warning {
+    border: 1px solid rgba(255, 107, 53, 0.35);
+}
+
+/* 슬라이드 카운터 */
+.present-slide-counter {
+    position: absolute;
+    right: 24px;
+    bottom: 24px;
+    z-index: 10;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+/* presentation.css의 hymn-picker와 app-status 숨기기 */
+.present-body .hymn-picker,
+.present-body .app-status {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .present-shell {
+        flex-direction: column;
+    }
+
+    .present-sidebar {
+        width: 100%;
+        min-width: 100%;
+        border-right: 0;
+        border-bottom: 1px solid var(--present-border);
+        max-height: 40vh;
+        transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                    margin-top 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .present-shell.sidebar-collapsed .present-sidebar {
+        transform: translateY(-100%);
+        margin-left: 0;
+        margin-top: -40vh;
+    }
+
+    .present-toggle-sidebar {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 30;
+    }
+}

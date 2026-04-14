@@ -426,6 +426,9 @@
                 clearBeam: document.getElementById("editor-clear-beam"),
                 addSlide: document.getElementById("editor-add-slide"),
                 removeSlide: document.getElementById("editor-remove-slide"),
+                mergeSlide: document.getElementById("editor-merge-slide"),
+                copySlide: document.getElementById("editor-copy-slide"),
+                pasteSlide: document.getElementById("editor-paste-slide"),
                 prevSlide: document.getElementById("editor-prev-slide"),
                 nextSlide: document.getElementById("editor-next-slide"),
                 saveHymn: document.getElementById("editor-save-hymn"),
@@ -464,6 +467,10 @@
             this.skipNextEditableBlur = false;
             this.searchIndex = [];
             this.searchQuery = "";
+            this.sectionMenuOpen = false;
+            this.orderMenuOpen = false;
+            this.contextMenuOpen = false;
+            this.slideClipboard = null;
             this.isSyncingExportOutput = false;
             this.exportSyncTimer = null;
             this.pendingExportHistory = null;
@@ -555,7 +562,10 @@
             this.dom.applyBeam.addEventListener("click", () => this.applySelectedBeamGroup());
             this.dom.clearBeam.addEventListener("click", () => this.clearSelectedBeamGroup());
             this.dom.addSlide.addEventListener("click", () => this.insertSlideAfterCurrent());
-            this.dom.removeSlide.addEventListener("click", () => this.removeCurrentSlide());
+            this.dom.removeSlide.addEventListener("click", () => this.deleteCurrentSlide());
+            this.dom.mergeSlide.addEventListener("click", () => this.mergeCurrentSlideIntoPrevious());
+            this.dom.copySlide.addEventListener("click", () => this.copyCurrentSlide());
+            this.dom.pasteSlide.addEventListener("click", () => this.pasteSlide());
             this.dom.saveHymn.addEventListener("click", () => this.saveCurrentHymn());
             this.dom.deleteSaved.addEventListener("click", () => this.deleteCurrentSavedHymn());
             this.dom.importJson.addEventListener("click", () => this.dom.importFile.click());
@@ -573,6 +583,7 @@
             this.dom.canvas.addEventListener("mousedown", (event) => this.handleCanvasMouseDown(event));
             this.dom.canvas.addEventListener("click", (event) => this.handleCanvasClick(event));
             this.dom.canvas.addEventListener("dblclick", (event) => this.handleCanvasDoubleClick(event));
+            this.dom.canvas.addEventListener("contextmenu", (event) => this.handleCanvasContextMenu(event));
             this.dom.canvas.addEventListener("input", (event) => this.handleEditableInput(event));
             this.dom.canvas.addEventListener("focusin", (event) => this.handleEditableFocus(event));
             this.dom.canvas.addEventListener("focusout", (event) => this.handleEditableBlur(event));
@@ -997,6 +1008,9 @@
         }
 
         renderCurrentSlide() {
+            this.sectionMenuOpen = false;
+            this.orderMenuOpen = false;
+            this.contextMenuOpen = false;
             const slide = this.getCurrentSlide();
             if (!slide) {
                 return;
@@ -1008,9 +1022,9 @@
                 <section class="editor-slide-card">
                     <header class="editor-slide-header">
                         <div class="editor-slide-title">${slide.title}</div>
-                        <div class="editor-slide-heading">${slide.label}</div>
                         <div class="editor-slide-submeta">
-                            <span class="editor-slide-badge">${slide.badge}</span>
+                            <span class="editor-slide-badge" data-section-badge role="button" tabindex="0" title="절/후렴 변경">${slide.badge}</span>
+                            <span class="editor-slide-badge" data-order-badge role="button" tabindex="0" title="슬라이드 순서 변경">${slide.slideIndex + 1}번</span>
                             <span data-slide-meta-value>${slide.key || "-"} · ${slide.timeSignature || "-"}</span>
                         </div>
                     </header>
@@ -1681,6 +1695,37 @@
             this.setStatus(slide.type === "chorus" ? "새 후렴 슬라이드를 추가했습니다." : "새 절 슬라이드를 추가했습니다.");
         }
 
+        copyCurrentSlide() {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                this.setStatus("복사할 슬라이드가 없습니다.", "warning");
+                return;
+            }
+
+            this.slideClipboard = {
+                korean: slide.korean,
+                english: slide.english,
+                notes: slide.notes ? JSON.parse(JSON.stringify(slide.notes)) : null
+            };
+            this.updateToolbarState();
+            this.setStatus(`${slide.badge} ${slide.slideIndex + 1}번 슬라이드를 복사했습니다.`);
+        }
+
+        pasteSlide() {
+            if (!this.slideClipboard) {
+                this.setStatus("복사된 슬라이드가 없습니다.", "warning");
+                return;
+            }
+
+            this.recordHistory();
+            this.insertSlideAfterCurrent({
+                korean: this.slideClipboard.korean,
+                english: this.slideClipboard.english,
+                notes: this.slideClipboard.notes ? JSON.parse(JSON.stringify(this.slideClipboard.notes)) : null
+            });
+            this.setStatus("슬라이드를 붙여넣었습니다.");
+        }
+
         splitCurrentSlideToNextSlide(editable) {
             const slide = this.getCurrentSlide();
             if (!slide) {
@@ -1735,7 +1780,7 @@
             this.setStatus("현재 위치부터 다음 슬라이드로 나눴습니다.");
         }
 
-        removeCurrentSlide() {
+        deleteCurrentSlide() {
             const slide = this.getCurrentSlide();
             if (!slide) {
                 this.setStatus("삭제할 슬라이드가 없습니다.", "warning");
@@ -1747,29 +1792,51 @@
                 return;
             }
 
-            const hasContent = this.slideHasContent(slide);
+            this.recordHistory();
 
-            if (hasContent && slide.slideIndex > 0) {
-                this.recordHistory();
-                const previousIndex = slide.slideIndex - 1;
-                const previousKoreanLines = getStoredLines(slide.koreanOwner[previousIndex] || "");
-                const currentKoreanLines = getStoredLines(slide.korean || "");
-                const previousEnglishLines = getStoredLines(slide.englishOwner[previousIndex] || "");
-                const currentEnglishLines = getStoredLines(slide.english || "");
+            slide.koreanOwner.splice(slide.slideIndex, 1);
+            slide.englishOwner.splice(slide.slideIndex, 1);
+            slide.notesOwner.splice(slide.slideIndex, 1);
 
-                slide.koreanOwner[previousIndex] = joinStoredLines([...previousKoreanLines, ...currentKoreanLines]);
-                slide.englishOwner[previousIndex] = joinStoredLines([...previousEnglishLines, ...currentEnglishLines]);
-                slide.notesOwner[previousIndex] = this.mergeNotesMaps(
-                    slide.notesOwner[previousIndex],
-                    slide.notes,
-                    previousKoreanLines.length
-                );
-            } else if (hasContent && slide.slideIndex === 0) {
-                this.setStatus("내용이 있는 첫 슬라이드는 앞 슬라이드가 없어 바로 삭제할 수 없습니다.", "warning");
-                return;
-            } else {
-                this.recordHistory();
+            // 해당 섹션이 비었으면 절 자체를 삭제
+            if (slide.type === "verse") {
+                const verse = this.data.hymn.verses[slide.sectionKey];
+                if (verse && verse.korean.length === 0 && verse.english.length === 0) {
+                    delete this.data.hymn.verses[slide.sectionKey];
+                }
             }
+
+            const fallbackIndex = Math.max(0, this.currentSlideIndex - 1);
+            this.rebuildSlidesAndRestoreSelection({ fallbackIndex });
+            this.setStatus("슬라이드를 삭제했습니다.");
+        }
+
+        mergeCurrentSlideIntoPrevious() {
+            const slide = this.getCurrentSlide();
+            if (!slide) {
+                this.setStatus("통합할 슬라이드가 없습니다.", "warning");
+                return;
+            }
+
+            if (slide.slideIndex === 0) {
+                this.setStatus("첫 번째 슬라이드는 앞 슬라이드가 없어 통합할 수 없습니다.", "warning");
+                return;
+            }
+
+            this.recordHistory();
+            const previousIndex = slide.slideIndex - 1;
+            const previousKoreanLines = getStoredLines(slide.koreanOwner[previousIndex] || "");
+            const currentKoreanLines = getStoredLines(slide.korean || "");
+            const previousEnglishLines = getStoredLines(slide.englishOwner[previousIndex] || "");
+            const currentEnglishLines = getStoredLines(slide.english || "");
+
+            slide.koreanOwner[previousIndex] = joinStoredLines([...previousKoreanLines, ...currentKoreanLines]);
+            slide.englishOwner[previousIndex] = joinStoredLines([...previousEnglishLines, ...currentEnglishLines]);
+            slide.notesOwner[previousIndex] = this.mergeNotesMaps(
+                slide.notesOwner[previousIndex],
+                slide.notes,
+                previousKoreanLines.length
+            );
 
             slide.koreanOwner.splice(slide.slideIndex, 1);
             slide.englishOwner.splice(slide.slideIndex, 1);
@@ -1777,11 +1844,7 @@
 
             const fallbackIndex = Math.max(0, this.currentSlideIndex - 1);
             this.rebuildSlidesAndRestoreSelection({ fallbackIndex });
-            this.setStatus(
-                hasContent
-                    ? (slide.type === "chorus" ? "후렴 슬라이드를 삭제하고 내용을 이전 슬라이드에 이어 붙였습니다." : "절 슬라이드를 삭제하고 내용을 이전 슬라이드에 이어 붙였습니다.")
-                    : (slide.type === "chorus" ? "후렴 슬라이드를 삭제했습니다." : "절 슬라이드를 삭제했습니다.")
-            );
+            this.setStatus("앞 슬라이드와 통합했습니다.");
         }
 
         renderAllLines() {
@@ -2093,6 +2156,9 @@
             this.dom.clearBeam.disabled = !this.isEditMode || !this.canClearBeamSelection();
             this.dom.addSlide.disabled = !this.data || !this.data.hymn;
             this.dom.removeSlide.disabled = this.slides.length <= 1;
+            this.dom.mergeSlide.disabled = !this.getCurrentSlide() || this.getCurrentSlide().slideIndex === 0;
+            this.dom.copySlide.disabled = !this.getCurrentSlide();
+            this.dom.pasteSlide.disabled = !this.slideClipboard || !this.getCurrentSlide();
             this.dom.saveHymn.disabled = !this.data || !this.data.hymn;
             this.dom.deleteSaved.disabled = !this.data || !this.data.hymn || !this.hasSavedHymn(getSongId(this.data.hymn));
             this.dom.undo.disabled = this.undoStack.length === 0;
@@ -2539,6 +2605,56 @@
                 return;
             }
 
+            const sectionBadge = event.target.closest("[data-section-badge]");
+            if (sectionBadge) {
+                event.preventDefault();
+                this.closeOrderMenu();
+                this.toggleSectionMenu();
+                return;
+            }
+
+            const orderBadge = event.target.closest("[data-order-badge]");
+            if (orderBadge) {
+                event.preventDefault();
+                this.closeSectionMenu();
+                this.toggleOrderMenu();
+                return;
+            }
+
+            const sectionMenuButton = event.target.closest("[data-section-action]");
+            if (sectionMenuButton) {
+                event.preventDefault();
+                this.handleSectionAction(sectionMenuButton.dataset.sectionAction, sectionMenuButton);
+                return;
+            }
+
+            const orderMenuButton = event.target.closest("[data-order-action]");
+            if (orderMenuButton) {
+                event.preventDefault();
+                this.handleOrderAction(orderMenuButton);
+                return;
+            }
+
+            const contextMenuButton = event.target.closest("[data-context-action]");
+            if (contextMenuButton) {
+                event.preventDefault();
+                if (!contextMenuButton.disabled) {
+                    this.handleContextMenuAction(contextMenuButton.dataset.contextAction);
+                }
+                return;
+            }
+
+            // 메뉴 바깥 클릭 시 닫기
+            if (this.sectionMenuOpen && !event.target.closest("[data-section-menu]")) {
+                this.closeSectionMenu();
+            }
+            if (this.orderMenuOpen && !event.target.closest("[data-order-menu]")) {
+                this.closeOrderMenu();
+            }
+            if (this.contextMenuOpen && !event.target.closest("[data-canvas-context-menu]")) {
+                this.closeCanvasContextMenu();
+            }
+
             const beamMenuButton = event.target.closest("[data-beam-menu-action]");
             if (beamMenuButton) {
                 event.preventDefault();
@@ -2607,6 +2723,81 @@
                 this.applyClickAction(target, 1);
                 this.pendingClickTimer = null;
             }, CLICK_DELAY_MS);
+        }
+
+        handleCanvasContextMenu(event) {
+            // 인라인 메뉴 내부에서의 우클릭은 기본 동작 허용
+            if (event.target.closest("[data-canvas-context-menu]")) {
+                return;
+            }
+            event.preventDefault();
+            this.openCanvasContextMenu(event);
+        }
+
+        openCanvasContextMenu(event) {
+            this.closeSectionMenu();
+            this.closeOrderMenu();
+
+            const slideCard = this.dom.canvas.querySelector(".editor-slide-card");
+            if (!slideCard) return;
+
+            let menuEl = slideCard.querySelector("[data-canvas-context-menu]");
+            if (!menuEl) {
+                menuEl = document.createElement("div");
+                menuEl.className = "editor-canvas-context-menu";
+                menuEl.dataset.canvasContextMenu = "true";
+                slideCard.appendChild(menuEl);
+            }
+
+            const slide = this.getCurrentSlide();
+            const canMerge = slide && slide.slideIndex > 0;
+            const canDelete = this.slides.length > 1;
+
+            menuEl.innerHTML = `
+                <button type="button" data-context-action="add-slide">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>슬라이드 추가</span>
+                </button>
+                <button type="button" data-context-action="merge-slide" ${canMerge ? "" : "disabled"}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 11 12 6 7 11"/><polyline points="17 18 12 13 7 18"/></svg>
+                    <span>앞 슬라이드와 통합</span>
+                </button>
+                <button type="button" data-context-action="delete-slide" class="is-danger" ${canDelete ? "" : "disabled"}>
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                    <span>슬라이드 삭제</span>
+                </button>
+            `;
+
+            // 캔버스 기준 좌표 계산
+            const slideCardRect = slideCard.getBoundingClientRect();
+            const x = event.clientX - slideCardRect.left;
+            const y = event.clientY - slideCardRect.top;
+
+            menuEl.style.left = `${x}px`;
+            menuEl.style.top = `${y}px`;
+            menuEl.hidden = false;
+
+            this.contextMenuOpen = true;
+        }
+
+        closeCanvasContextMenu() {
+            const menuEl = this.dom.canvas.querySelector("[data-canvas-context-menu]");
+            if (menuEl) {
+                menuEl.hidden = true;
+                menuEl.innerHTML = "";
+            }
+            this.contextMenuOpen = false;
+        }
+
+        handleContextMenuAction(action) {
+            this.closeCanvasContextMenu();
+            if (action === "add-slide") {
+                this.insertSlideAfterCurrent();
+            } else if (action === "merge-slide") {
+                this.mergeCurrentSlideIntoPrevious();
+            } else if (action === "delete-slide") {
+                this.deleteCurrentSlide();
+            }
         }
 
         handleCanvasDoubleClick(event) {
@@ -3857,6 +4048,275 @@
                 && !!a.existingNote === !!b.existingNote;
         }
 
+        // ── 섹션(절/후렴) 변경 메뉴 ──
+
+        toggleSectionMenu() {
+            if (this.sectionMenuOpen) {
+                this.closeSectionMenu();
+            } else {
+                this.openSectionMenu();
+            }
+        }
+
+        openSectionMenu() {
+            const slide = this.getCurrentSlide();
+            if (!slide) return;
+
+            const slideCard = this.dom.canvas.querySelector(".editor-slide-card");
+            if (!slideCard) return;
+
+            let menuEl = slideCard.querySelector("[data-section-menu]");
+            if (!menuEl) {
+                menuEl = document.createElement("div");
+                menuEl.className = "editor-section-menu";
+                menuEl.dataset.sectionMenu = "true";
+                const badgeEl = slideCard.querySelector("[data-section-badge]");
+                if (badgeEl) {
+                    badgeEl.parentElement.style.position = "relative";
+                    badgeEl.parentElement.appendChild(menuEl);
+                } else {
+                    slideCard.appendChild(menuEl);
+                }
+            }
+
+            const isChorus = slide.type === "chorus";
+            const verseNum = isChorus ? "1" : slide.sectionKey;
+
+            menuEl.hidden = false;
+            menuEl.innerHTML = `
+                <span class="editor-section-menu-label">절 변경</span>
+                <input type="number" min="1" max="99" value="${verseNum}"
+                       data-section-verse-input class="editor-section-menu-input"
+                       placeholder="절" title="절 번호">
+                <button type="button" data-section-action="set-verse">절로 이동</button>
+                <button type="button" data-section-action="set-chorus" class="${isChorus ? "is-current" : ""}">후렴으로 이동</button>
+            `;
+
+            this.sectionMenuOpen = true;
+
+            // input에 포커스 & Enter 키 지원
+            const input = menuEl.querySelector("[data-section-verse-input]");
+            if (input) {
+                requestAnimationFrame(() => input.select());
+                input.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        this.handleSectionAction("set-verse", menuEl.querySelector("[data-section-action='set-verse']"));
+                    } else if (event.key === "Escape") {
+                        this.closeSectionMenu();
+                    }
+                });
+            }
+        }
+
+        closeSectionMenu() {
+            const menuEl = this.dom.canvas.querySelector("[data-section-menu]");
+            if (menuEl) {
+                menuEl.hidden = true;
+                menuEl.innerHTML = "";
+            }
+            this.sectionMenuOpen = false;
+        }
+
+        handleSectionAction(action, buttonEl) {
+            const slide = this.getCurrentSlide();
+            if (!slide) return;
+
+            const hymn = this.data.hymn;
+            const menuEl = this.dom.canvas.querySelector("[data-section-menu]");
+
+            if (action === "set-verse") {
+                const input = menuEl ? menuEl.querySelector("[data-section-verse-input]") : null;
+                const verseNum = input ? String(parseInt(input.value, 10) || 1) : "1";
+
+                if (slide.type === "verse" && slide.sectionKey === verseNum) {
+                    this.closeSectionMenu();
+                    return;
+                }
+
+                this.recordHistory();
+                this.moveSlideToSection(slide, "verse", verseNum);
+                this.closeSectionMenu();
+                this.setStatus(`${verseNum}절로 이동했습니다.`);
+
+            } else if (action === "set-chorus") {
+                if (slide.type === "chorus") {
+                    this.closeSectionMenu();
+                    return;
+                }
+
+                this.recordHistory();
+                this.moveSlideToSection(slide, "chorus", "chorus");
+                this.closeSectionMenu();
+                this.setStatus("후렴으로 이동했습니다.");
+            }
+        }
+
+        moveSlideToSection(slide, targetType, targetKey) {
+            const hymn = this.data.hymn;
+
+            // 현재 위치에서 슬라이드 데이터 제거
+            const korean = slide.korean;
+            const english = slide.english;
+            const notes = slide.notes;
+
+            slide.koreanOwner.splice(slide.slideIndex, 1);
+            slide.englishOwner.splice(slide.slideIndex, 1);
+            slide.notesOwner.splice(slide.slideIndex, 1);
+
+            // 원래 섹션이 빈 절이 되었으면 절 자체를 삭제
+            if (slide.type === "verse") {
+                const verse = hymn.verses[slide.sectionKey];
+                if (verse && verse.korean.length === 0 && verse.english.length === 0) {
+                    delete hymn.verses[slide.sectionKey];
+                }
+            }
+
+            // 대상 섹션에 추가
+            if (targetType === "chorus") {
+                if (!hymn.chorus || typeof hymn.chorus !== "object") {
+                    hymn.chorus = { korean: [], english: [], notes: [] };
+                }
+                this.ensureSectionArrays(hymn.chorus);
+                hymn.chorus.korean.push(korean);
+                hymn.chorus.english.push(english);
+                hymn.chorus.notes.push(notes);
+            } else {
+                if (!hymn.verses[targetKey]) {
+                    hymn.verses[targetKey] = { korean: [], english: [], notes: [] };
+                }
+                this.ensureSectionArrays(hymn.verses[targetKey]);
+                hymn.verses[targetKey].korean.push(korean);
+                hymn.verses[targetKey].english.push(english);
+                hymn.verses[targetKey].notes.push(notes);
+            }
+
+            const targetSlideId = targetType === "chorus"
+                ? `chorus-${(hymn.chorus.korean.length || 1) - 1}`
+                : `verse-${targetKey}-${(hymn.verses[targetKey].korean.length || 1) - 1}`;
+
+            this.rebuildSlidesAndRestoreSelection({
+                targetSlideId,
+                fallbackIndex: this.currentSlideIndex
+            });
+        }
+
+        // ── 슬라이드 순서 변경 메뉴 ──
+
+        toggleOrderMenu() {
+            if (this.orderMenuOpen) {
+                this.closeOrderMenu();
+            } else {
+                this.openOrderMenu();
+            }
+        }
+
+        openOrderMenu() {
+            const slide = this.getCurrentSlide();
+            if (!slide) return;
+
+            const slideCard = this.dom.canvas.querySelector(".editor-slide-card");
+            if (!slideCard) return;
+
+            let menuEl = slideCard.querySelector("[data-order-menu]");
+            if (!menuEl) {
+                menuEl = document.createElement("div");
+                menuEl.className = "editor-section-menu";
+                menuEl.dataset.orderMenu = "true";
+                const badgeEl = slideCard.querySelector("[data-order-badge]");
+                if (badgeEl) {
+                    badgeEl.parentElement.style.position = "relative";
+                    badgeEl.parentElement.appendChild(menuEl);
+                } else {
+                    slideCard.appendChild(menuEl);
+                }
+            }
+
+            const totalSlides = slide.koreanOwner.length;
+            const currentNum = slide.slideIndex + 1;
+
+            menuEl.hidden = false;
+            menuEl.innerHTML = `
+                <span class="editor-section-menu-label">순서 변경</span>
+                <input type="number" min="1" max="${totalSlides}" value="${currentNum}"
+                       data-order-input class="editor-section-menu-input"
+                       placeholder="번" title="슬라이드 번호">
+                <span class="editor-section-menu-label">/ ${totalSlides}</span>
+                <button type="button" data-order-action="swap">이동</button>
+            `;
+
+            this.orderMenuOpen = true;
+
+            const input = menuEl.querySelector("[data-order-input]");
+            if (input) {
+                requestAnimationFrame(() => input.select());
+                input.addEventListener("keydown", (event) => {
+                    if (event.key === "Enter") {
+                        event.preventDefault();
+                        this.handleOrderAction(menuEl.querySelector("[data-order-action]"));
+                    } else if (event.key === "Escape") {
+                        this.closeOrderMenu();
+                    }
+                });
+            }
+        }
+
+        closeOrderMenu() {
+            const menuEl = this.dom.canvas.querySelector("[data-order-menu]");
+            if (menuEl) {
+                menuEl.hidden = true;
+                menuEl.innerHTML = "";
+            }
+            this.orderMenuOpen = false;
+        }
+
+        handleOrderAction(buttonEl) {
+            const slide = this.getCurrentSlide();
+            if (!slide) return;
+
+            const menuEl = this.dom.canvas.querySelector("[data-order-menu]");
+            const input = menuEl ? menuEl.querySelector("[data-order-input]") : null;
+            if (!input) return;
+
+            const targetNum = parseInt(input.value, 10);
+            if (!targetNum || targetNum < 1) return;
+
+            const fromIndex = slide.slideIndex;
+            const toIndex = targetNum - 1;
+            const totalSlides = slide.koreanOwner.length;
+
+            if (toIndex === fromIndex || toIndex >= totalSlides) {
+                this.closeOrderMenu();
+                return;
+            }
+
+            this.recordHistory();
+
+            // 세 배열(korean, english, notes)에서 swap
+            this.swapArrayElements(slide.koreanOwner, fromIndex, toIndex);
+            this.swapArrayElements(slide.englishOwner, fromIndex, toIndex);
+            this.swapArrayElements(slide.notesOwner, fromIndex, toIndex);
+
+            const targetSlideId = slide.type === "chorus"
+                ? `chorus-${toIndex}`
+                : `verse-${slide.sectionKey}-${toIndex}`;
+
+            this.closeOrderMenu();
+            this.rebuildSlidesAndRestoreSelection({
+                targetSlideId,
+                fallbackIndex: this.currentSlideIndex
+            });
+
+            this.setStatus(`${fromIndex + 1}번과 ${toIndex + 1}번 슬라이드를 교체했습니다.`);
+        }
+
+        swapArrayElements(arr, i, j) {
+            if (!Array.isArray(arr) || i < 0 || j < 0 || i >= arr.length || j >= arr.length) return;
+            const temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+
         async saveCurrentHymn() {
             if (!this.data || !this.data.hymn || !window.HymnStorage) {
                 this.setStatus("저장할 곡 데이터가 없습니다.", "warning");
@@ -3868,6 +4328,13 @@
                 this.refreshSavedHymnList();
                 this.updateHeader();
                 this.setStatus(`${getSongReference(this.data.hymn) || getSongId(this.data.hymn)}을(를) ${window.HymnStorage.getStorageLabel()}에 저장했습니다.`);
+
+                // 다른 탭(프레젠테이션 등)에 저장 알림
+                try {
+                    const channel = new BroadcastChannel("scoresentation");
+                    channel.postMessage({ type: "hymn-saved", id: getSongId(this.data.hymn) });
+                    channel.close();
+                } catch (_) { /* BroadcastChannel 미지원 환경 무시 */ }
             } catch (error) {
                 this.setStatus("저장 중 오류가 발생했습니다. 서버 상태를 확인해 주세요.", "warning");
             }

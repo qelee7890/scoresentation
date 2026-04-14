@@ -17,7 +17,7 @@
                 <p>기획서 Phase 1 MVP: 음표 생성, 박자 순환, 삭제, JSON 내보내기</p>
             </div>
 
-            <form id="editor-hymn-form" class="editor-hymn-form" autocomplete="off">
+            <form id="editor-hymn-form" class="editor-hymn-form" autocomplete="off" hidden>
                 <label for="editor-hymn-number">곡 ID</label>
                 <div class="editor-row">
                     <input id="editor-hymn-number" name="song" type="text" placeholder="46 또는 ccm-amazing-grace">
@@ -34,7 +34,7 @@
                 <div id="editor-search-results" class="editor-search-results"></div>
             </div>
 
-            <div class="editor-panel">
+            <div class="editor-panel" hidden>
                 <div class="editor-panel-title">저장 곡</div>
                 <div id="editor-saved-list" class="editor-saved-list"></div>
             </div>
@@ -50,61 +50,42 @@
                 <div id="editor-slide-list" class="editor-slide-list"></div>
             </div>
 
-            <div class="editor-panel">
-                <div class="editor-panel-title">사용법</div>
-                <ul class="editor-help">
-                    <li><kbd>E</kbd> 편집 모드 토글</li>
-                    <li>호버로 회색 음표 미리보기</li>
-                    <li>클릭으로 생성 또는 박자 증가</li>
-                    <li><kbd>Ctrl</kbd>+클릭으로 박자 감소</li>
-                    <li>더블클릭으로 음표 삭제</li>
-                    <li>음자리표 오른쪽 조표 영역: 호버 후 클릭으로 조표 추가</li>
-                    <li>조표 영역에서 <kbd>Ctrl</kbd> 호버: 샵 미리보기</li>
-                    <li>조표 영역 더블클릭: 마지막 조표 삭제</li>
-                    <li>기존 음표 위에서 높낮이를 바꿔 호버 후 클릭하면 음정 변경</li>
-                    <li>기존 음표는 드래그해서 음높이 변경</li>
-                    <li>가사 줄은 직접 클릭해서 수정</li>
-                    <li>좌측 곡 검색에서 제목 또는 가사로 hymn/ccm을 최대 10개까지 찾기</li>
-                    <li>가사 줄에서 <kbd>Enter</kbd>: 현재 줄을 둘로 나누기</li>
-                    <li>가사 줄에서 <kbd>Ctrl</kbd>+<kbd>Enter</kbd>: 현재 위치 이후를 새 슬라이드로 보내기</li>
-                    <li>줄 시작에서 <kbd>Backspace</kbd>, 줄 끝에서 <kbd>Delete</kbd>: 인접 줄 합치기</li>
-                    <li>절 슬라이드 가사에 <code>&lt;후렴&gt;</code>을 넣으면 후렴 슬라이드로 이동</li>
-                    <li>기존 음표 클릭: 인라인 메뉴 열기</li>
-                    <li>인라인 메뉴의 점 추가/점 제거로 점음표를 편집</li>
-                    <li><kbd>Ctrl</kbd> 또는 <kbd>Shift</kbd>와 함께 클릭: 같은 줄 선택에 음표 추가</li>
-                    <li>빈 오선지 드래그: 같은 줄의 여러 음표를 박스로 선택</li>
-                    <li>선택 후에는 음표 근처 메뉴에서 바로 적용/해제/취소</li>
-                    <li>연결선 선택은 한 줄씩만 유지되며, 다른 줄을 고르면 이전 선택은 정리</li>
-                    <li>연결선 선택 후 인라인 메뉴에서 바로 묶기 또는 해제</li>
-                    <li>툴바의 슬라이드 추가/삭제로 현재 절 또는 후렴 슬라이드를 조정</li>
-                    <li>내용이 있는 슬라이드를 삭제하면 이전 슬라이드 뒤에 내용이 이어 붙는다</li>
-                    <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>: 실행 취소, <kbd>Ctrl</kbd>+<kbd>Y</kbd>: 다시 실행</li>
-                    <li><code>python server.py</code>로 열면 저장/불러오기가 SQLite DB를 우선 사용합니다</li>
-                </ul>
-            </div>
         </aside>
 
         <main class="editor-main">
             <header class="editor-toolbar">
                 <div class="editor-toolbar-left">
-                    <button id="editor-toggle-mode" type="button">편집 모드 켜짐</button>
+                    <button id="editor-toggle-mode" type="button" hidden>편집 모드 켜짐</button>
                     <button id="editor-toggle-dot" type="button" hidden>점음표 모드 꺼짐</button>
                     <button id="editor-toggle-beam" type="button" hidden>연결선 모드 꺼짐</button>
                     <button id="editor-apply-beam" type="button" hidden>연결선 적용</button>
                     <button id="editor-clear-beam" type="button" hidden>연결선 해제</button>
-                    <button id="editor-add-slide" type="button">슬라이드 추가</button>
-                    <button id="editor-remove-slide" type="button">슬라이드 삭제</button>
-                    <button id="editor-prev-slide" type="button">이전 슬라이드</button>
-                    <button id="editor-next-slide" type="button">다음 슬라이드</button>
+                    <button id="editor-add-slide" type="button" hidden>슬라이드 추가</button>
+                    <button id="editor-remove-slide" type="button" hidden>슬라이드 삭제</button>
+                    <button id="editor-merge-slide" type="button" hidden>앞 슬라이드와 통합</button>
+                    <button id="editor-copy-slide" type="button" class="editor-icon-btn" title="슬라이드 복사" aria-label="슬라이드 복사">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    </button>
+                    <button id="editor-paste-slide" type="button" class="editor-icon-btn" title="슬라이드 붙여넣기" aria-label="슬라이드 붙여넣기">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                    </button>
                 </div>
                 <div class="editor-toolbar-right">
-                    <button id="editor-save-hymn" type="button">곡 저장</button>
-                    <button id="editor-delete-saved" type="button">저장본 삭제</button>
-                    <button id="editor-import-json" type="button">JSON 가져오기</button>
-                    <button id="editor-undo" type="button">실행 취소</button>
-                    <button id="editor-redo" type="button">다시 실행</button>
-                    <button id="editor-export-json" type="button">JSON 복사</button>
-                    <button id="editor-download-json" type="button">JSON 다운로드</button>
+                    <button id="editor-save-hymn" type="button" class="editor-icon-btn" title="곡 저장" aria-label="곡 저장">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
+                    <button id="editor-delete-saved" type="button" class="editor-icon-btn" title="저장본 삭제" aria-label="저장본 삭제">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+                    </button>
+                    <button id="editor-import-json" type="button" hidden>JSON 가져오기</button>
+                    <button id="editor-undo" type="button" class="editor-icon-btn" title="실행 취소" aria-label="실행 취소">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6.7 3L3 13"/></svg>
+                    </button>
+                    <button id="editor-redo" type="button" class="editor-icon-btn" title="다시 실행" aria-label="다시 실행">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6.7 3L21 13"/></svg>
+                    </button>
+                    <button id="editor-export-json" type="button" hidden>JSON 복사</button>
+                    <button id="editor-download-json" type="button" hidden>JSON 다운로드</button>
                 </div>
             </header>
 
@@ -113,12 +94,92 @@
             <input id="editor-import-file" type="file" accept="application/json,.json" hidden>
 
             <section class="editor-canvas-wrap">
+                <button id="editor-prev-slide" type="button" class="editor-nav-btn editor-nav-btn-prev" title="이전 슬라이드" aria-label="이전 슬라이드">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
                 <article id="editor-canvas" class="editor-canvas"></article>
+                <button id="editor-next-slide" type="button" class="editor-nav-btn editor-nav-btn-next" title="다음 슬라이드" aria-label="다음 슬라이드">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
             </section>
 
-            <section class="editor-export-panel">
+            <section class="editor-export-panel" hidden>
                 <div class="editor-panel-title">내보내기</div>
                 <textarea id="editor-export-output" spellcheck="false"></textarea>
+            </section>
+
+            <section class="editor-help-panel">
+                <div class="editor-panel-title">사용법</div>
+                <div class="editor-help-grid">
+                    <div class="editor-help-group">
+                        <h4>음표 입력·수정</h4>
+                        <ul class="editor-help">
+                            <li>호버로 회색 음표 미리보기 후 클릭하면 생성</li>
+                            <li>기존 음표 클릭: 박자 증가 · <kbd>Ctrl</kbd>+클릭: 박자 감소</li>
+                            <li>더블클릭으로 음표 삭제</li>
+                            <li>음표 위에서 높낮이를 바꿔 호버 후 클릭: 음정 변경</li>
+                            <li>기존 음표는 드래그해서 음높이 변경</li>
+                            <li>기존 음표 클릭: 인라인 메뉴 열기 (길이, 점음표 편집)</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>조표</h4>
+                        <ul class="editor-help">
+                            <li>음자리표 오른쪽 조표 영역: 호버 후 클릭으로 조표 추가</li>
+                            <li>조표 영역 <kbd>Ctrl</kbd> 호버: 샵 미리보기</li>
+                            <li>조표 영역 더블클릭: 마지막 조표 삭제</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>연결선 (빔)</h4>
+                        <ul class="editor-help">
+                            <li><kbd>Ctrl</kbd>/<kbd>Shift</kbd>+클릭: 같은 줄에 음표 추가 선택</li>
+                            <li>빈 오선지 드래그: 같은 줄의 음표를 박스로 선택</li>
+                            <li>선택 후 나타나는 인라인 메뉴에서 묶기/해제/취소</li>
+                            <li>연결선 선택은 한 줄씩만 유지됨</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>가사 편집</h4>
+                        <ul class="editor-help">
+                            <li>가사 줄을 직접 클릭해서 수정</li>
+                            <li>가사 줄에서 <kbd>Enter</kbd>: 현재 줄을 둘로 나누기</li>
+                            <li>가사 줄에서 <kbd>Ctrl</kbd>+<kbd>Enter</kbd>: 현재 위치 이후를 새 슬라이드로 분리</li>
+                            <li>줄 시작에서 <kbd>Backspace</kbd>, 줄 끝에서 <kbd>Delete</kbd>: 인접 줄 합치기</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>슬라이드 조작</h4>
+                        <ul class="editor-help">
+                            <li>캔버스에서 <b>우클릭</b>: 슬라이드 추가 · 앞 슬라이드와 통합 · 슬라이드 삭제 메뉴</li>
+                            <li>툴바 아이콘: 슬라이드 <b>복사</b> / <b>붙여넣기</b></li>
+                            <li>악보 블록 좌우 화살표 버튼으로 <b>이전/다음 슬라이드</b> 이동</li>
+                            <li>삭제: 내용을 버리고 슬라이드만 제거 · 통합: 현재 슬라이드 내용을 앞 슬라이드 뒤에 이어붙임</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>절·후렴 변경</h4>
+                        <ul class="editor-help">
+                            <li>슬라이드 상단 <b>[N절]</b> 뱃지 클릭: 다른 절로 이동 또는 후렴으로 이동</li>
+                            <li>슬라이드 상단 <b>[N번]</b> 뱃지 클릭: 같은 섹션 내 다른 번호 슬라이드와 교체</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>검색·저장</h4>
+                        <ul class="editor-help">
+                            <li>좌측 <b>곡 검색</b>에서 제목 또는 가사로 최대 10개까지 검색</li>
+                            <li>우측 상단 아이콘: 곡 저장 / 저장본 삭제 / 실행 취소 / 다시 실행</li>
+                            <li><kbd>Ctrl</kbd>+<kbd>Z</kbd>: 실행 취소, <kbd>Ctrl</kbd>+<kbd>Y</kbd>: 다시 실행</li>
+                            <li><code>python server.py</code>로 열면 저장/불러오기가 SQLite DB를 우선 사용</li>
+                        </ul>
+                    </div>
+                </div>
             </section>
         </main>
     </div>

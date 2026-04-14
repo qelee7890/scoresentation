@@ -255,6 +255,58 @@ body.editor-body {
     font-size: 13px;
 }
 
+.editor-help-panel {
+    margin-top: 18px;
+    padding: 22px 26px;
+    border: 1px solid var(--editor-border);
+    border-radius: 24px;
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 18px 34px rgba(77, 55, 27, 0.08);
+}
+
+.editor-help-panel .editor-panel-title {
+    font-size: 16px;
+    margin-bottom: 18px;
+    color: var(--editor-text);
+}
+
+.editor-help-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 22px 28px;
+}
+
+.editor-help-group h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--editor-accent);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.editor-help-group .editor-help {
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.editor-help-group .editor-help li {
+    color: var(--editor-muted);
+}
+
+.editor-help-group .editor-help b {
+    color: var(--editor-text);
+    font-weight: 500;
+}
+
+.editor-help-group code {
+    padding: 1px 6px;
+    background: rgba(140, 75, 47, 0.08);
+    border-radius: 6px;
+    font-family: Consolas, monospace;
+    font-size: 12px;
+    color: var(--editor-accent);
+}
+
 .editor-main {
     padding: 28px;
 }
@@ -286,6 +338,20 @@ body.editor-body {
     cursor: not-allowed;
 }
 
+.editor-toolbar button.editor-icon-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+
+.editor-toolbar button.editor-icon-btn svg {
+    display: block;
+}
+
 .editor-status {
     margin-top: 16px;
     padding: 12px 14px;
@@ -308,6 +374,52 @@ body.editor-body {
     border-radius: 24px;
     background: rgba(255, 255, 255, 0.72);
     box-shadow: 0 18px 34px rgba(77, 55, 27, 0.08);
+}
+
+.editor-canvas-wrap {
+    position: relative;
+}
+
+.editor-nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--editor-border);
+    border-radius: 50%;
+    background: rgba(255, 252, 247, 0.95);
+    color: var(--editor-text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 16px rgba(77, 55, 27, 0.1);
+    transition: background-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    z-index: 3;
+}
+
+.editor-nav-btn:hover:not(:disabled) {
+    background: var(--editor-accent-soft);
+    box-shadow: 0 8px 20px rgba(77, 55, 27, 0.16);
+}
+
+.editor-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.editor-nav-btn-prev {
+    left: 12px;
+}
+
+.editor-nav-btn-next {
+    right: 12px;
+}
+
+.editor-nav-btn svg {
+    display: block;
 }
 
 .editor-canvas {
@@ -360,6 +472,75 @@ body.editor-body {
     background: var(--editor-accent-soft);
     color: var(--editor-accent);
     font-size: 14px;
+    cursor: pointer;
+    transition: background-color 120ms ease, box-shadow 120ms ease;
+    user-select: none;
+}
+
+.editor-slide-badge:hover {
+    background: rgba(140, 75, 47, 0.2);
+    box-shadow: 0 0 0 2px rgba(140, 75, 47, 0.15);
+}
+
+.editor-section-menu {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 18px;
+    border: 1px solid rgba(62, 42, 25, 0.14);
+    background: rgba(255, 252, 247, 0.98);
+    box-shadow: 0 14px 28px rgba(77, 55, 27, 0.16);
+    z-index: 8;
+}
+
+.editor-section-menu[hidden] {
+    display: none;
+}
+
+.editor-section-menu-label {
+    font-size: 12px;
+    color: var(--editor-muted);
+    white-space: nowrap;
+}
+
+.editor-section-menu-input {
+    width: 48px;
+    padding: 7px 10px;
+    border: 1px solid var(--editor-border);
+    border-radius: 999px;
+    background: #fff;
+    font: inherit;
+    font-size: 14px;
+    text-align: center;
+}
+
+.editor-section-menu-input:focus {
+    outline: none;
+    border-color: var(--editor-accent);
+    box-shadow: 0 0 0 2px rgba(140, 75, 47, 0.12);
+}
+
+.editor-section-menu button {
+    font: inherit;
+    border: 1px solid var(--editor-border);
+    border-radius: 999px;
+    background: #fff;
+    color: var(--editor-text);
+    padding: 7px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.editor-section-menu button.is-current {
+    background: var(--editor-accent-soft);
+    border-color: rgba(140, 75, 47, 0.28);
+    color: var(--editor-accent);
 }
 
 .editor-lyrics {
@@ -477,6 +658,64 @@ body.editor-body {
 
 .editor-note-menu[hidden] {
     display: none;
+}
+
+/* 캔버스 우클릭 컨텍스트 메뉴 */
+.editor-canvas-context-menu {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 14px;
+    border: 1px solid rgba(62, 42, 25, 0.14);
+    background: rgba(255, 252, 247, 0.98);
+    box-shadow: 0 14px 28px rgba(77, 55, 27, 0.18);
+    z-index: 10;
+    min-width: 180px;
+}
+
+.editor-canvas-context-menu[hidden] {
+    display: none;
+}
+
+.editor-canvas-context-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: inherit;
+    font-size: 13px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--editor-text);
+    padding: 8px 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: background-color 100ms ease;
+}
+
+.editor-canvas-context-menu button:hover:not(:disabled) {
+    background: var(--editor-accent-soft);
+}
+
+.editor-canvas-context-menu button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.editor-canvas-context-menu button.is-danger:hover:not(:disabled) {
+    background: rgba(192, 57, 43, 0.1);
+    color: #c0392b;
+}
+
+.editor-canvas-context-menu svg {
+    flex-shrink: 0;
+    color: var(--editor-muted);
+}
+
+.editor-canvas-context-menu button.is-danger svg {
+    color: inherit;
 }
 
 .editor-note-menu button {
