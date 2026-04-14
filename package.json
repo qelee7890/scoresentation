@@ -10,7 +10,7 @@
     "rebuild": "electron-rebuild",
     "build": "electron-builder --win",
     "publish": "electron-builder --win --publish always",
-    "server": "python server.py"
+    "server": "python tools/server.py"
   },
   "build": {
     "appId": "com.scoresentation.app",
@@ -23,10 +23,7 @@
       "preload.cjs",
       "main/**",
       "fonts/**",
-      "*.html",
-      "*.js",
-      "*.css",
-      "tools/**",
+      "src/**",
       "!data/**"
     ],
     "extraResources": [

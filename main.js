@@ -46,10 +46,12 @@ function setupProtocol() {
             filePath = path.join(IMAGES_DIR, rest);
         } else if (url.pathname.startsWith("/node_modules/")) {
             filePath = path.join(ROOT_DIR, decodeURIComponent(url.pathname));
+        } else if (url.pathname.startsWith("/fonts/")) {
+            filePath = path.join(ROOT_DIR, decodeURIComponent(url.pathname));
         } else {
             let p = decodeURIComponent(url.pathname);
             if (p === "/" || p === "") p = "/index.html";
-            filePath = path.join(ROOT_DIR, p);
+            filePath = path.join(ROOT_DIR, "src", p);
         }
 
         return net.fetch("file:///" + filePath.replace(/\\/g, "/"));
