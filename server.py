@@ -700,6 +700,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
             except json.JSONDecodeError:
                 json_error(self, HTTPStatus.BAD_REQUEST, "JSON 본문을 해석하지 못했습니다.")
                 return
+            self._cleanup_orphan_media_safe()
             json_response(self, HTTPStatus.CREATED, {"item": created})
             return
 
@@ -758,6 +759,7 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
             if updated is None:
                 json_error(self, HTTPStatus.NOT_FOUND, "셋리스트를 찾지 못했습니다.")
                 return
+            self._cleanup_orphan_media_safe()
             json_response(self, HTTPStatus.OK, {"item": updated})
             return
 
@@ -863,6 +865,14 @@ class ScoresentationHandler(SimpleHTTPRequestHandler):
 
         media = self.setlists.register_media(filename, mime, len(data))
         json_response(self, HTTPStatus.CREATED, {"item": media})
+
+    def _cleanup_orphan_media_safe(self) -> None:
+        try:
+            stats = cleanup_orphan_media(self.setlists, self.media_dir)
+            if stats["files"] or stats["rows"]:
+                print(f"[setlist save] pruned media: {stats['files']} file(s), {stats['rows']} DB row(s).")
+        except Exception as error:  # noqa: BLE001
+            print(f"[setlist save] cleanup skipped: {error}")
 
     def _list_image_folders(self) -> list[dict[str, Any]]:
         if not self.images_dir.is_dir():
