@@ -1958,16 +1958,23 @@
                 const images = this.getMediaImages(item.payload);
                 const title = this.getMediaTitle(item.payload);
                 if (!images.length) return [];
-                return images.map((img) => {
+                const total = images.length;
+                return images.map((img, i) => {
                     const fit = img.fit || "contain";
                     const caption = img.caption || "";
                     const url = img.url || "";
+                    const badge = total > 1
+                        ? `<span class="slide-section-badge"><span class="current">${i + 1}장</span><span class="separator">/</span><span class="total">${total}장</span></span>`
+                        : "";
+                    const titleHtml = (title || badge)
+                        ? `<div class="slide-title slide-media-title">${title ? `<span class="slide-title-text">${escapeHtml(title)}</span>` : ""}${badge}</div>`
+                        : "";
                     return {
                         type: "media",
                         html: `
                             <div class="slide slide-media" data-fit="${escapeHtml(fit)}">
                                 <div class="slide-content">
-                                    ${title ? `<div class="slide-title slide-media-title">${escapeHtml(title)}</div>` : ""}
+                                    ${titleHtml}
                                     ${url ? `<img src="${escapeHtml(url)}" alt="slide image">` : ""}
                                     ${caption ? `<div class="slide-media-caption">${escapeHtml(caption)}</div>` : ""}
                                 </div>

@@ -635,9 +635,14 @@ body.present-body {
 
 .present-body .slide.slide-order .slide-order-body {
     font-size: calc(22px * var(--present-scale, 1));
-    color: var(--present-muted);
+    color: var(--present-text);
     line-height: 1.5;
     max-width: 80%;
+}
+
+body.present-body.dark .slide.slide-order .slide-order-title,
+body.present-body.dark .slide.slide-order .slide-order-body {
+    color: #fff;
 }
 
 .present-body .slide.slide-order .slide-order-list {
