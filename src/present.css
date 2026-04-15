@@ -586,6 +586,7 @@ body.present-body {
 .present-setlist-card[data-item-type="blank"] .present-setlist-type-icon,
 .present-setlist-card[data-item-type="text"] .present-setlist-type-icon,
 .present-setlist-card[data-item-type="media"] .present-setlist-type-icon,
+.present-setlist-card[data-item-type="order"] .present-setlist-type-icon,
 .present-setlist-card[data-item-type="score"] .present-setlist-type-icon {
     width: 22px;
     height: 22px;
@@ -602,6 +603,99 @@ body.present-body {
 .present-setlist-card[data-item-type="blank"] .present-setlist-type-icon { background: #7a7569; }
 .present-setlist-card[data-item-type="text"] .present-setlist-type-icon { background: #2f5d8c; }
 .present-setlist-card[data-item-type="media"] .present-setlist-type-icon { background: #2f8c55; }
+.present-setlist-card[data-item-type="order"] .present-setlist-type-icon { background: #6e4aa0; }
+
+.present-modal-hint {
+    font-size: 12px;
+    color: var(--present-muted);
+    margin: 4px 0 0 0;
+}
+
+/* 순서 페이지 슬라이드 */
+.present-body .slide.slide-order {
+    padding-top: 3%;
+}
+
+.present-body .slide.slide-order .slide-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(16px * var(--present-scale, 1));
+    padding: 0 5%;
+    text-align: center;
+    width: 100%;
+}
+
+.present-body .slide.slide-order .slide-order-title {
+    font-size: calc(48px * var(--present-scale, 1));
+    font-weight: 700;
+    color: var(--present-text);
+    letter-spacing: -0.02em;
+}
+
+.present-body .slide.slide-order .slide-order-body {
+    font-size: calc(22px * var(--present-scale, 1));
+    color: var(--present-muted);
+    line-height: 1.5;
+    max-width: 80%;
+}
+
+.present-body .slide.slide-order .slide-order-list {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: calc(10px * var(--present-scale, 1));
+    margin-top: calc(12px * var(--present-scale, 1));
+}
+
+.present-body .slide.slide-order .slide-order-entry {
+    display: flex;
+    align-items: center;
+    gap: calc(14px * var(--present-scale, 1));
+    padding: calc(10px * var(--present-scale, 1)) calc(16px * var(--present-scale, 1));
+    border-radius: 12px;
+    background: rgba(127, 127, 127, 0.08);
+    text-align: left;
+}
+
+.present-body .slide.slide-order .slide-order-entry-icon {
+    width: calc(32px * var(--present-scale, 1));
+    height: calc(32px * var(--present-scale, 1));
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(16px * var(--present-scale, 1));
+    color: #fff;
+    flex-shrink: 0;
+    background: #7a7569;
+}
+.present-body .slide.slide-order .slide-order-entry[data-type="score"] .slide-order-entry-icon { background: #8c4b2f; }
+.present-body .slide.slide-order .slide-order-entry[data-type="text"] .slide-order-entry-icon { background: #2f5d8c; }
+.present-body .slide.slide-order .slide-order-entry[data-type="media"] .slide-order-entry-icon { background: #2f8c55; }
+
+.present-body .slide.slide-order .slide-order-entry-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.present-body .slide.slide-order .slide-order-entry-title {
+    font-size: calc(24px * var(--present-scale, 1));
+    color: var(--present-text);
+    font-weight: 500;
+}
+
+.present-body .slide.slide-order .slide-order-entry-subtitle {
+    font-size: calc(14px * var(--present-scale, 1));
+    color: var(--present-muted);
+    margin-top: 2px;
+}
+
+body.present-body.dark .slide.slide-order .slide-order-entry {
+    background: rgba(255, 255, 255, 0.08);
+}
 
 
 /* 아이템 인라인 메뉴 */

@@ -217,7 +217,7 @@ export class HymnRepository {
 // Setlist & Media Repository (baseline + user overlay)
 // ─────────────────────────────────────────────
 
-const VALID_ITEM_TYPES = new Set(["score", "blank", "text", "media"]);
+const VALID_ITEM_TYPES = new Set(["score", "blank", "text", "media", "order"]);
 
 // User-created setlists use IDs >= USER_ID_OFFSET so they never collide with baseline.
 const USER_ID_OFFSET = 1_000_000_000;

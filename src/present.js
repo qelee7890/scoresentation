@@ -191,6 +191,11 @@
                 textBody: document.getElementById("present-text-body"),
                 textPreview: document.getElementById("present-text-preview"),
                 textSave: document.getElementById("present-text-save"),
+                orderModal: document.getElementById("present-order-modal"),
+                orderTitle: document.getElementById("present-order-title"),
+                orderBody: document.getElementById("present-order-body"),
+                orderPreview: document.getElementById("present-order-preview"),
+                orderSave: document.getElementById("present-order-save"),
                 imageModal: document.getElementById("present-image-modal"),
                 imagePreview: document.getElementById("present-image-preview"),
                 imageFile: document.getElementById("present-image-file"),
@@ -535,6 +540,10 @@
             this.dom.textSave.addEventListener("click", () => this.saveTextModal());
             this.bindModalClose(this.dom.textModal);
 
+            this.dom.orderBody.addEventListener("input", () => this.updateOrderPreview());
+            this.dom.orderSave.addEventListener("click", () => this.saveOrderModal());
+            this.bindModalClose(this.dom.orderModal);
+
             // 악보 모달
             this.dom.scoreBody.addEventListener("input", () => this.updateScorePreview());
             this.dom.scoreTitle.addEventListener("input", () => this.updateScorePreview());
@@ -653,6 +662,7 @@
         closeModal(modal) { if (modal) modal.hidden = true; }
         closeAllModals() {
             this.closeModal(this.dom.textModal);
+            this.closeModal(this.dom.orderModal);
             this.closeModal(this.dom.scoreModal);
             this.closeModal(this.dom.imageModal);
             this.closeModal(this.dom.loadModal);
@@ -980,6 +990,8 @@
                 this.openImageModal(null);
             } else if (type === "score-new") {
                 this.openScoreModal(null);
+            } else if (type === "order") {
+                this.openOrderModal(null);
             }
         }
 
@@ -995,6 +1007,8 @@
                 this.openImageModal(itemId);
             } else if (item.type === "blank") {
                 // 빈 페이지는 현재 편집할 게 없음 (추후 배경색 토글 자리)
+            } else if (item.type === "order") {
+                this.openOrderModal(itemId);
             }
         }
 
@@ -1132,6 +1146,44 @@
             this.editingItemId = null;
             this.markDirty();
             this.closeModal(this.dom.textModal);
+            this.renderAll();
+        }
+
+        // ── 순서 페이지 모달 ──
+
+        openOrderModal(itemId) {
+            this.editingItemId = itemId;
+            this.editingType = "order";
+            const item = itemId ? this.findItem(itemId) : null;
+            this.dom.orderTitle.value = (item && item.payload && item.payload.title) || "";
+            this.dom.orderBody.value = (item && item.payload && item.payload.body) || "";
+            this.updateOrderPreview();
+            this.dom.orderModal.hidden = false;
+            setTimeout(() => this.dom.orderTitle.focus(), 40);
+        }
+
+        updateOrderPreview() {
+            this.dom.orderPreview.innerHTML = renderMarkdown(this.dom.orderBody.value);
+            renderKatexIn(this.dom.orderPreview);
+        }
+
+        saveOrderModal() {
+            const title = this.dom.orderTitle.value.trim();
+            const body = this.dom.orderBody.value;
+            this.pushHistory();
+            if (this.editingItemId) {
+                const item = this.findItem(this.editingItemId);
+                if (item) item.payload = { title, body };
+            } else {
+                this.items.push({
+                    itemId: nextLocalId(),
+                    type: "order",
+                    payload: { title, body }
+                });
+            }
+            this.editingItemId = null;
+            this.markDirty();
+            this.closeModal(this.dom.orderModal);
             this.renderAll();
         }
 
@@ -1799,7 +1851,7 @@
         }
 
         renderItemCard(item, index) {
-            let typeIcon = { score: "♪", blank: "◻", text: "T", media: "🖼" }[item.type] || "?";
+            let typeIcon = { score: "♪", blank: "◻", text: "T", media: "🖼", order: "📋" }[item.type] || "?";
             let title = "", meta = "";
             if (item.type === "score") {
                 const songId = item.payload && item.payload.songId;
@@ -1820,6 +1872,10 @@
                 title = customTitle || (images.length > 1 ? "이미지들" : (images[0] && images[0].caption) || "이미지");
                 meta = `이미지 ${images.length}장`;
                 if (images.length > 1) typeIcon = "🗂";
+            } else if (item.type === "order") {
+                const t = (item.payload && item.payload.title) || "";
+                title = t || "순서";
+                meta = "순서 페이지";
             }
             return `
                 <div class="present-setlist-card" draggable="true" data-item-id="${item.itemId}" data-item-type="${item.type}" data-index="${index}">
@@ -1868,7 +1924,7 @@
 
         // ── 프레젠테이션 빌드 ──
 
-        buildSlidesForItem(item) {
+        buildSlidesForItem(item, index = -1) {
             if (item.type === "score") {
                 const songId = item.payload && item.payload.songId;
                 const hymn = songId ? this.songMap[songId] : null;
@@ -1921,7 +1977,70 @@
                     };
                 });
             }
+            if (item.type === "order") {
+                const title = (item.payload && item.payload.title) || "";
+                const body = (item.payload && item.payload.body) || "";
+                const listed = this.collectOrderRangeItems(index);
+                const listHtml = listed.map((it) => this.renderOrderListEntry(it)).join("");
+                return [{
+                    type: "order",
+                    html: `
+                        <div class="slide slide-order">
+                            <div class="slide-content">
+                                ${title ? `<div class="slide-order-title">${escapeHtml(title)}</div>` : ""}
+                                ${body.trim() ? `<div class="slide-order-body">${renderMarkdown(body)}</div>` : ""}
+                                <div class="slide-order-list">${listHtml}</div>
+                            </div>
+                        </div>
+                    `,
+                    notes: null
+                }];
+            }
             return [];
+        }
+
+        collectOrderRangeItems(startIndex) {
+            if (startIndex < 0 || !Array.isArray(this.items)) return [];
+            const out = [];
+            for (let i = startIndex + 1; i < this.items.length; i++) {
+                const it = this.items[i];
+                if (!it) continue;
+                if (it.type === "order") break;
+                if (it.type === "blank") continue;
+                out.push(it);
+            }
+            return out;
+        }
+
+        renderOrderListEntry(item) {
+            let typeIcon = { score: "♪", text: "T", media: "🖼", order: "📋" }[item.type] || "?";
+            let title = "", subtitle = "";
+            if (item.type === "score") {
+                const songId = item.payload && item.payload.songId;
+                const hymn = songId ? this.songMap[songId] : null;
+                title = hymn ? (hymn.title || songId) : (songId ? `(누락) ${songId}` : "(없음)");
+                subtitle = songId || "";
+            } else if (item.type === "text") {
+                const t = (item.payload && item.payload.title) || "";
+                const b = (item.payload && item.payload.body) || "";
+                title = t || (b.split("\n").find(Boolean) || "(빈 텍스트)").replace(/^#+\s*/, "").slice(0, 40);
+                subtitle = "텍스트";
+            } else if (item.type === "media") {
+                const images = this.getMediaImages(item.payload);
+                const customTitle = this.getMediaTitle(item.payload);
+                title = customTitle || (images.length > 1 ? "이미지들" : (images[0] && images[0].caption) || "이미지");
+                subtitle = `이미지 ${images.length}장`;
+                if (images.length > 1) typeIcon = "🗂";
+            }
+            return `
+                <div class="slide-order-entry" data-type="${escapeHtml(item.type)}">
+                    <span class="slide-order-entry-icon">${typeIcon}</span>
+                    <div class="slide-order-entry-info">
+                        <span class="slide-order-entry-title">${escapeHtml(title)}</span>
+                        ${subtitle ? `<span class="slide-order-entry-subtitle">${escapeHtml(subtitle)}</span>` : ""}
+                    </div>
+                </div>
+            `;
         }
 
         buildSlidesForHymn(hymn) {
@@ -2050,9 +2169,10 @@
             }
 
             this.itemStartIndex = {};
-            for (const item of this.items) {
+            for (let i = 0; i < this.items.length; i++) {
+                const item = this.items[i];
                 this.itemStartIndex[item.itemId] = this.slideData.length;
-                const slides = this.buildSlidesForItem(item);
+                const slides = this.buildSlidesForItem(item, i);
                 slides.forEach((s) => {
                     s.itemId = item.itemId;
                     this.slideData.push(s);

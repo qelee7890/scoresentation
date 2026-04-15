@@ -79,6 +79,7 @@
                             <button type="button" data-add-type="text">텍스트</button>
                             <button type="button" data-add-type="media">이미지</button>
                             <button type="button" data-add-type="score-new">빈 악보</button>
+                            <button type="button" data-add-type="order">순서 페이지</button>
                         </div>
                     </div>
                 </div>
@@ -122,6 +123,38 @@
             <footer class="present-modal-footer">
                 <button type="button" class="present-btn-ghost" data-close>취소</button>
                 <button type="button" id="present-text-save" class="present-btn-primary">적용</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- 순서 페이지 편집 모달 -->
+    <div id="present-order-modal" class="present-modal" hidden>
+        <div class="present-modal-backdrop" data-close></div>
+        <div class="present-modal-panel">
+            <header class="present-modal-header">
+                <h2>순서 페이지</h2>
+                <button type="button" class="present-modal-close" data-close aria-label="닫기">&times;</button>
+            </header>
+            <div class="present-modal-body present-text-editor">
+                <label class="present-modal-label">
+                    <span>제목 (선택)</span>
+                    <input id="present-order-title" type="text" placeholder="예: 예배 순서">
+                </label>
+                <div class="present-text-grid">
+                    <label class="present-modal-label">
+                        <span>설명 (마크다운, 선택)</span>
+                        <textarea id="present-order-body" placeholder="# 제목&#10;&#10;본문 내용 (**굵게**, *기울임* 등)"></textarea>
+                    </label>
+                    <div class="present-modal-label">
+                        <span>미리보기</span>
+                        <div id="present-order-preview" class="present-text-preview markdown-body"></div>
+                    </div>
+                </div>
+                <p class="present-modal-hint">이 페이지 아래에 있는 항목들이 슬라이드에 자동으로 나열됩니다 (다음 "순서 페이지"가 있으면 그 직전까지, 빈 페이지는 제외).</p>
+            </div>
+            <footer class="present-modal-footer">
+                <button type="button" class="present-btn-ghost" data-close>취소</button>
+                <button type="button" id="present-order-save" class="present-btn-primary">적용</button>
             </footer>
         </div>
     </div>
