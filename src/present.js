@@ -144,10 +144,15 @@
         return `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     }
 
+    function getCurrentScale() {
+        const raw = parseFloat(document.body.style.getPropertyValue("--present-scale"));
+        return Number.isFinite(raw) && raw > 0 ? raw : 1;
+    }
+
     function getNotesTheme() {
         const isDark = document.body.classList.contains("dark");
         return {
-            staffHeight: 40,
+            staffHeight: 40 * getCurrentScale(),
             staffColor: isDark ? "#bbb" : "#666",
             noteColor: isDark ? "#fff" : "#000"
         };
@@ -288,13 +293,37 @@
             let zoom = 1;
             try { zoom = parseFloat(localStorage.getItem("present-zoom")) || 1; } catch (_) {}
             this.zoomLevel = Math.max(0.5, Math.min(2, zoom));
-            this.dom.presentationContainer.style.zoom = this.zoomLevel;
+            this._applyScale();
         }
 
         adjustZoom(delta) {
             this.zoomLevel = Math.max(0.5, Math.min(2, (this.zoomLevel || 1) + delta));
-            this.dom.presentationContainer.style.zoom = this.zoomLevel;
+            this._applyScale();
             try { localStorage.setItem("present-zoom", String(this.zoomLevel)); } catch (_) {}
+            // staffHeight가 스케일에 따라 달라지므로 SVG만 다시 그려준다.
+            // (가사 HTML은 이미 .lyrics-line-with-notes 구조로 래핑되어 있으므로
+            //  addNotationToLyrics를 다시 호출하면 안 된다.)
+            this.rerenderAllNotations();
+        }
+
+        rerenderAllNotations() {
+            if (!window.NotesEngine || !this.allSlides || this.allSlides.length === 0) return;
+            // 폰트가 막 적용되었으므로 다음 프레임에 측정한다.
+            requestAnimationFrame(() => {
+                const notesEngine = new NotesEngine(getNotesTheme());
+                this.allSlides.forEach((slideEl, index) => {
+                    const data = this.slideData?.[index];
+                    if (!data || !data.notes) return;
+                    const koreanEl = slideEl.querySelector(".lyrics-korean");
+                    if (koreanEl) notesEngine.renderNotations(koreanEl, data.notes, data.key);
+                });
+            });
+        }
+
+        _applyScale() {
+            // CSS zoom 대신 폰트 비율 스케일을 사용한다.
+            this.dom.presentationContainer.style.removeProperty("zoom");
+            document.body.style.setProperty("--present-scale", String(this.zoomLevel));
         }
 
         // ── 곡 데이터 로드 ──
@@ -524,6 +553,12 @@
                         event.preventDefault(); this.nextSlide(); break;
                     case "ArrowLeft":
                         event.preventDefault(); this.prevSlide(); break;
+                    case "+":
+                    case "=":
+                        event.preventDefault(); this.adjustZoom(0.1); break;
+                    case "-":
+                    case "_":
+                        event.preventDefault(); this.adjustZoom(-0.1); break;
                     case "f":
                     case "F":
                         this.toggleFullscreen(); break;
@@ -542,13 +577,7 @@
                 else this.nextSlide();
             });
 
-            // dirty 경고
-            window.addEventListener("beforeunload", (event) => {
-                if (this.dirty) {
-                    event.preventDefault();
-                    event.returnValue = "";
-                }
-            });
+            // dirty 종료 가드는 Electron 메인 프로세스가 처리한다 (main.js attachCloseGuard).
         }
 
         bindModalClose(modal) {
@@ -622,11 +651,13 @@
         markDirty() {
             this.dirty = true;
             this.dom.dirtyDot.hidden = false;
+            window.electronAPI?.setDirty?.(true);
         }
 
         clearDirty() {
             this.dirty = false;
             this.dom.dirtyDot.hidden = true;
+            window.electronAPI?.setDirty?.(false);
         }
 
         // ── 셋리스트 파일 관리 ──
@@ -1894,9 +1925,11 @@
                             html: `
                                 <div class="slide">
                                     <div class="slide-content">
-                                        <div class="slide-title">${escapeHtml(songTitle)}</div>
+                                        <div class="slide-title">
+                                            <span class="slide-title-text">${escapeHtml(songTitle)}</span>
+                                            <span class="slide-section-badge"><span class="current">${verseNum}절</span><span class="separator">/</span><span class="total">${totalVerses}절</span></span>
+                                        </div>
                                         <div class="lyrics-content ${notesClass}">
-                                            <div class="verse-badge"><span class="current">${verseNum}절</span>/<span class="total">${totalVerses}절</span></div>
                                             <div class="lyrics-korean" data-has-notes="${!!notesData}">${korean.replace(/<br\/>/g, "<br>")}</div>
                                             ${english ? `<div class="lyrics-english">${english.replace(/<br\/>/g, "<br>")}</div>` : ""}
                                         </div>
@@ -1922,9 +1955,11 @@
                                 html: `
                                     <div class="slide">
                                         <div class="slide-content">
-                                            <div class="slide-title">${escapeHtml(songTitle)}</div>
+                                            <div class="slide-title">
+                                                <span class="slide-title-text">${escapeHtml(songTitle)}</span>
+                                                <span class="slide-section-badge is-chorus"><span class="current">후렴</span><span class="separator">/</span><span class="total">${totalVerses}절</span></span>
+                                            </div>
                                             <div class="lyrics-content ${notesClass}">
-                                                <div class="chorus-badge"><span class="current">후렴</span>/<span class="total">${totalVerses}절</span></div>
                                                 <div class="lyrics-korean" data-has-notes="${!!notesData}">${korean.replace(/<br\/>/g, "<br>")}</div>
                                                 ${english ? `<div class="lyrics-english">${english.replace(/<br\/>/g, "<br>")}</div>` : ""}
                                             </div>

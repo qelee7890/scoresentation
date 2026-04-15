@@ -274,8 +274,8 @@ class NotesEngine {
         // 덧줄 (오선지 밖의 음표)
         svg += this.createLedgerLines(x, pitchPos, staffTop, noteColor);
 
-        // 기둥 방향 결정 (B4 기준, 위=아래로, 아래=위로)
-        const stemDown = pitchPos < 3;
+        // 기둥 방향 결정 (B4 이상=아래로, B4 미만=위로). B4 pitchPos = 1.5.
+        const stemDown = pitchPos <= 1.5;
 
         // 음표 머리 (Bravura 글리프)
         const noteheadGlyph = this.smufl[durationInfo.notehead];
@@ -401,7 +401,7 @@ class NotesEngine {
         const avgPitch = beamNotes.reduce((sum, n) => {
             return sum + (this.pitchMap[n.pitch] ?? 3);
         }, 0) / beamNotes.length;
-        const stemDown = avgPitch < 3;
+        const stemDown = avgPitch <= 1.5;
 
         // 각 음표의 기둥 위치 정보 계산 (헬퍼 메서드 사용)
         const noteInfos = beamNotes.map(note => {

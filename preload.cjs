@@ -27,4 +27,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     onHymnSaved: (callback) => {
         ipcRenderer.on("hymn-saved", (_event, songId) => callback(songId));
     },
+
+    // Unsaved-changes tracking (per window)
+    setDirty: (value) => ipcRenderer.send("app:set-dirty", !!value),
 });

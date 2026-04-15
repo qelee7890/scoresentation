@@ -1,7 +1,8 @@
 import { app, BrowserWindow, ipcMain, protocol, net, shell, dialog } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { autoUpdater } from "electron-updater";
+import electronUpdater from "electron-updater";
+const { autoUpdater } = electronUpdater;
 import { HymnRepository, SetlistRepository } from "./main/db.js";
 import {
     generateMediaFilename, cleanupOrphanMedia,
@@ -15,15 +16,24 @@ const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = __dirname;
 const IS_PACKAGED = app.isPackaged;
-const DATA_DIR = IS_PACKAGED
+
+// Baseline data: shipped with the app, replaced on every update. Read-only at runtime.
+const BASELINE_DATA_DIR = IS_PACKAGED
     ? path.join(process.resourcesPath, "data")
     : path.join(ROOT_DIR, "data");
-const DB_PATH = path.join(DATA_DIR, "scoresentation.db");
-const SETLIST_DB_PATH = path.join(DATA_DIR, "setlists.db");
-const MEDIA_DIR = path.join(DATA_DIR, "media");
-const IMAGES_DIR = path.join(DATA_DIR, "images");
+const BASELINE_DB_PATH = path.join(BASELINE_DATA_DIR, "scoresentation.db");
+const BASELINE_SETLIST_DB_PATH = path.join(BASELINE_DATA_DIR, "setlists.db");
+const BASELINE_MEDIA_DIR = path.join(BASELINE_DATA_DIR, "media");
+const BASELINE_IMAGES_DIR = path.join(BASELINE_DATA_DIR, "images");
 
-// Ensure directories
+// User data: lives outside the app bundle so it persists across updates.
+const USER_DATA_DIR = path.join(app.getPath("userData"), "data");
+const USER_DB_PATH = path.join(USER_DATA_DIR, "scoresentation-user.db");
+const SETLIST_DB_PATH = path.join(USER_DATA_DIR, "setlists.db");
+const MEDIA_DIR = path.join(USER_DATA_DIR, "media");
+const IMAGES_DIR = path.join(USER_DATA_DIR, "images");
+
+fs.mkdirSync(USER_DATA_DIR, { recursive: true });
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 fs.mkdirSync(IMAGES_DIR, { recursive: true });
 
@@ -33,6 +43,11 @@ let mainWindow;
 
 // ── Custom protocol ──
 
+function resolveWithBaselineFallback(userPath, baselinePath) {
+    try { if (fs.existsSync(userPath)) return userPath; } catch (_) { /* ignore */ }
+    return baselinePath;
+}
+
 function setupProtocol() {
     protocol.handle("app", (request) => {
         const url = new URL(request.url);
@@ -40,10 +55,16 @@ function setupProtocol() {
 
         if (url.pathname.startsWith("/media/")) {
             const filename = decodeURIComponent(url.pathname.slice(7));
-            filePath = path.join(MEDIA_DIR, filename);
+            filePath = resolveWithBaselineFallback(
+                path.join(MEDIA_DIR, filename),
+                path.join(BASELINE_MEDIA_DIR, filename),
+            );
         } else if (url.pathname.startsWith("/images/")) {
             const rest = decodeURIComponent(url.pathname.slice(8));
-            filePath = path.join(IMAGES_DIR, rest);
+            filePath = resolveWithBaselineFallback(
+                path.join(IMAGES_DIR, rest),
+                path.join(BASELINE_IMAGES_DIR, rest),
+            );
         } else if (url.pathname.startsWith("/node_modules/")) {
             filePath = path.join(ROOT_DIR, decodeURIComponent(url.pathname));
         } else if (url.pathname.startsWith("/fonts/")) {
@@ -95,6 +116,45 @@ function createMainWindow() {
     });
 
     mainWindow.on("closed", () => { mainWindow = null; });
+}
+
+// ── Unsaved-changes guard ──
+
+const dirtyWindows = new Map(); // webContentsId -> boolean
+const forceCloseWindows = new Set(); // webContentsId
+
+function registerDirtyHandlers() {
+    ipcMain.on("app:set-dirty", (event, value) => {
+        dirtyWindows.set(event.sender.id, !!value);
+    });
+}
+
+function attachCloseGuard(win) {
+    const wcId = win.webContents.id;
+    win.on("close", (event) => {
+        if (forceCloseWindows.has(wcId)) return;
+        if (!dirtyWindows.get(wcId)) return;
+        event.preventDefault();
+        dialog.showMessageBox(win, {
+            type: "warning",
+            title: "저장하지 않은 변경 사항",
+            message: "저장하지 않은 변경 사항이 있습니다.",
+            detail: "변경 내용을 버리고 종료할까요?",
+            buttons: ["버리고 종료", "취소"],
+            defaultId: 1,
+            cancelId: 1,
+        }).then((result) => {
+            if (result.response === 0) {
+                forceCloseWindows.add(wcId);
+                dirtyWindows.delete(wcId);
+                if (!win.isDestroyed()) win.close();
+            }
+        });
+    });
+    win.on("closed", () => {
+        dirtyWindows.delete(wcId);
+        forceCloseWindows.delete(wcId);
+    });
 }
 
 // ── IPC: Hymns ──
@@ -197,17 +257,17 @@ function registerMediaHandlers() {
 
 function registerImageFolderHandlers() {
     ipcMain.handle("images-folders:list", () => {
-        return { items: listImageFolders(IMAGES_DIR) };
+        return { items: listImageFolders(IMAGES_DIR, BASELINE_IMAGES_DIR) };
     });
 
     ipcMain.handle("images-folders:get", (_event, name) => {
-        const entries = listImageFolderContents(IMAGES_DIR, name);
+        const entries = listImageFolderContents(IMAGES_DIR, name, BASELINE_IMAGES_DIR);
         if (!entries) return { error: "not found" };
         return { folder: name, images: entries };
     });
 
     ipcMain.handle("images-folders:sync", (_event, params) => {
-        return syncImageFolder(IMAGES_DIR, MEDIA_DIR, params);
+        return syncImageFolder(IMAGES_DIR, MEDIA_DIR, params, BASELINE_MEDIA_DIR, BASELINE_IMAGES_DIR);
     });
 }
 
@@ -260,13 +320,16 @@ function setupAutoUpdater() {
 app.whenReady().then(() => {
     setupProtocol();
 
-    hymnRepo = new HymnRepository(DB_PATH);
-    setlistRepo = new SetlistRepository(SETLIST_DB_PATH);
+    hymnRepo = new HymnRepository(BASELINE_DB_PATH, USER_DB_PATH);
+    setlistRepo = new SetlistRepository(SETLIST_DB_PATH, BASELINE_SETLIST_DB_PATH);
 
     registerHymnHandlers();
     registerSetlistHandlers();
     registerMediaHandlers();
     registerImageFolderHandlers();
+    registerDirtyHandlers();
+
+    app.on("browser-window-created", (_event, win) => attachCloseGuard(win));
 
     createMainWindow();
 

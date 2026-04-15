@@ -800,6 +800,7 @@
             this.undoStack = [];
             this.redoStack = [];
             this.pendingTextHistory = null;
+            this.clearDirty();
             this.updateHeader();
             this.renderSlideList();
             if (this.slides.length > 0) {
@@ -2232,7 +2233,18 @@
                 this.undoStack.shift();
             }
             this.redoStack = [];
+            this.markDirty();
             this.updateToolbarState();
+        }
+
+        markDirty() {
+            this.isDirty = true;
+            window.electronAPI?.setDirty?.(true);
+        }
+
+        clearDirty() {
+            this.isDirty = false;
+            window.electronAPI?.setDirty?.(false);
         }
 
         restoreHistorySnapshot(snapshot) {
@@ -4530,6 +4542,7 @@
 
             try {
                 await window.HymnStorage.saveHymn(this.data.hymn);
+                this.clearDirty();
                 this.refreshSavedHymnList();
                 this.updateHeader();
                 this.setStatus(`${getSongReference(this.data.hymn) || getSongId(this.data.hymn)}을(를) ${window.HymnStorage.getStorageLabel()}에 저장했습니다.`);

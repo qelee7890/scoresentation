@@ -57,22 +57,49 @@ export function generateMediaFilename(mime, originalName) {
     return `${token}${ext}`;
 }
 
-export function listImageFolders(imagesDir) {
-    if (!fs.existsSync(imagesDir)) return [];
-    const entries = fs.readdirSync(imagesDir, { withFileTypes: true });
-    return entries
+function listFolderNames(dir) {
+    if (!dir || !fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir, { withFileTypes: true })
         .filter((e) => e.isDirectory() && !e.name.startsWith("."))
-        .sort((a, b) => naturalCompare(a.name, b.name))
-        .map((e) => {
-            const files = fs.readdirSync(path.join(imagesDir, e.name))
-                .filter((f) => !f.startsWith(".") && fs.statSync(path.join(imagesDir, e.name, f)).isFile());
-            return { name: e.name, count: files.length };
-        });
+        .map((e) => e.name);
 }
 
-export function listImageFolderContents(imagesDir, name) {
-    const folder = path.join(imagesDir, name);
-    if (!fs.existsSync(folder) || !fs.statSync(folder).isDirectory()) return null;
+function countFolderFiles(dir, name) {
+    try {
+        return fs.readdirSync(path.join(dir, name))
+            .filter((f) => !f.startsWith(".") && fs.statSync(path.join(dir, name, f)).isFile())
+            .length;
+    } catch (_) { return 0; }
+}
+
+// User folders shadow baseline folders with the same name.
+export function listImageFolders(imagesDir, baselineDir = null) {
+    const seen = new Set();
+    const out = [];
+    for (const name of listFolderNames(imagesDir)) {
+        seen.add(name);
+        out.push({ name, count: countFolderFiles(imagesDir, name) });
+    }
+    for (const name of listFolderNames(baselineDir)) {
+        if (seen.has(name)) continue;
+        out.push({ name, count: countFolderFiles(baselineDir, name) });
+    }
+    out.sort((a, b) => naturalCompare(a.name, b.name));
+    return out;
+}
+
+export function listImageFolderContents(imagesDir, name, baselineDir = null) {
+    const userFolder = path.join(imagesDir, name);
+    let folder = null;
+    if (fs.existsSync(userFolder) && fs.statSync(userFolder).isDirectory()) {
+        folder = userFolder;
+    } else if (baselineDir) {
+        const baselineFolder = path.join(baselineDir, name);
+        if (fs.existsSync(baselineFolder) && fs.statSync(baselineFolder).isDirectory()) {
+            folder = baselineFolder;
+        }
+    }
+    if (!folder) return null;
 
     const files = fs.readdirSync(folder)
         .filter((f) => !f.startsWith(".") && fs.statSync(path.join(folder, f)).isFile())
@@ -88,30 +115,33 @@ export function listImageFolderContents(imagesDir, name) {
     });
 }
 
-function resolveUrlToPath(url, mediaDir, imagesDir) {
+function resolveUrlToPath(url, mediaDir, imagesDir, baselineMediaDir = null, baselineImagesDir = null) {
     if (!url) return null;
+    const candidates = [];
     try {
         const parsed = new URL(url, "http://localhost");
         const p = decodeURIComponent(parsed.pathname);
         if (p.startsWith("/media/")) {
             const name = p.slice(7);
             if (name.includes("/") || name.includes("\\") || name.includes("..")) return null;
-            const candidate = path.join(mediaDir, name);
-            return fs.existsSync(candidate) ? candidate : null;
-        }
-        if (p.startsWith("/images/")) {
+            candidates.push(path.join(mediaDir, name));
+            if (baselineMediaDir) candidates.push(path.join(baselineMediaDir, name));
+        } else if (p.startsWith("/images/")) {
             const rest = p.slice(8).replace(/^\/+|\/+$/g, "");
             const parts = rest.split("/");
             if (parts.length !== 2) return null;
             if (!isSafeFolderName(parts[0])) return null;
-            const candidate = path.join(imagesDir, parts[0], parts[1]);
-            return fs.existsSync(candidate) ? candidate : null;
+            candidates.push(path.join(imagesDir, parts[0], parts[1]));
+            if (baselineImagesDir) candidates.push(path.join(baselineImagesDir, parts[0], parts[1]));
         }
     } catch (_) { /* ignore */ }
+    for (const c of candidates) {
+        if (fs.existsSync(c)) return c;
+    }
     return null;
 }
 
-export function syncImageFolder(imagesDir, mediaDir, params) {
+export function syncImageFolder(imagesDir, mediaDir, params, baselineMediaDir = null, baselineImagesDir = null) {
     const folderName = (params.folderName || "").trim();
     const previousName = (params.previousName || "").trim();
     const overwrite = !!params.overwrite;
@@ -134,7 +164,7 @@ export function syncImageFolder(imagesDir, mediaDir, params) {
     const sources = [];
     for (const img of images) {
         const url = (img && img.url) || "";
-        const src = resolveUrlToPath(url, mediaDir, imagesDir);
+        const src = resolveUrlToPath(url, mediaDir, imagesDir, baselineMediaDir, baselineImagesDir);
         if (!src) return { error: `원본 파일을 찾지 못했습니다: ${url}` };
         sources.push(src);
     }

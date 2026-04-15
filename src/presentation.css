@@ -171,10 +171,35 @@ html, body {
 
 /* 제목 */
 .slide-title {
-    font-size: 32px;
+    font-size: calc(32px * var(--present-scale, 1));
     color: var(--color-gray);
-    margin-bottom: 60px;
+    margin-bottom: 30px;
     letter-spacing: -0.02em;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.slide-section-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: calc(4px * var(--present-scale, 1)) calc(12px * var(--present-scale, 1));
+    border-radius: 999px;
+    background: rgba(140, 75, 47, 0.12);
+    color: var(--color-accent);
+    font-size: calc(18px * var(--present-scale, 1));
+    line-height: 1;
+    user-select: none;
+}
+
+.slide-section-badge .separator,
+.slide-section-badge .total {
+    color: var(--color-gray);
+    margin-left: 2px;
+}
+
+.slide-section-badge .total {
+    margin-left: 0;
 }
 
 /* 가사 영역 */
@@ -187,7 +212,7 @@ html, body {
 
 /* 한글 가사 */
 .lyrics-korean {
-    font-size: 48px;
+    font-size: calc(48px * var(--present-scale, 1));
     color: #000;
     line-height: 1.6;
     letter-spacing: -0.02em;
@@ -196,7 +221,7 @@ html, body {
 
 /* 영문 가사 (한글의 70%) */
 .lyrics-english {
-    font-size: 30px;
+    font-size: calc(30px * var(--present-scale, 1));
     color: var(--color-gray);
     line-height: 1.5;
     letter-spacing: 0;
@@ -206,7 +231,7 @@ html, body {
 /* 절/후렴 표시 (상단 중앙) */
 .verse-badge {
     display: inline-block;
-    font-size: 18px;
+    font-size: calc(18px * var(--present-scale, 1));
     margin-bottom: 15px;
     letter-spacing: 0.05em;
     color: var(--color-gray);
@@ -224,26 +249,26 @@ html, body {
 }
 
 .hymn-number {
-    font-size: 120px;
+    font-size: calc(120px * var(--present-scale, 1));
     color: #000;
     font-weight: 400;
     margin-bottom: 30px;
 }
 
 .hymn-title {
-    font-size: 56px;
+    font-size: calc(56px * var(--present-scale, 1));
     color: #000;
     letter-spacing: -0.02em;
 }
 
 .hymn-subtitle {
-    font-size: 28px;
+    font-size: calc(28px * var(--present-scale, 1));
     color: var(--color-gray);
     margin-top: 20px;
 }
 
 .hymn-meta {
-    font-size: 20px;
+    font-size: calc(20px * var(--present-scale, 1));
     color: var(--color-gray);
     margin-top: 40px;
 }
@@ -251,7 +276,7 @@ html, body {
 /* 후렴 표시 */
 .chorus-badge {
     display: inline-block;
-    font-size: 18px;
+    font-size: calc(18px * var(--present-scale, 1));
     margin-bottom: 15px;
     letter-spacing: 0.05em;
     color: var(--color-gray);

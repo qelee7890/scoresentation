@@ -50,6 +50,7 @@
 .lyrics-line-text {
     display: inline-block;
     text-align: center;
+    white-space: nowrap;  /* 음표-가사 정렬 유지를 위해 줄바꿈 방지 */
 }
 
 /* 글자 측정용 (렌더링 시 임시 사용) */

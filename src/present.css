@@ -394,7 +394,12 @@ body.present-body {
 
 /* 프레젠테이션 슬라이드가 부모 크기에 맞추도록 */
 .present-body .slide {
-    padding: 6% 4% 4% 4%;
+    padding: 6% 1.5% 4% 1.5%;
+}
+
+/* 메인 슬라이드 콘텐츠의 너비 제한을 풀어 더 긴 악보가 가득 차도록 한다. */
+.present-body .slide:not(.slide-text) .slide-content {
+    max-width: none;
 }
 
 .present-status {
@@ -1229,13 +1234,17 @@ body.present-body {
     background: var(--present-slide-default-bg);
 }
 
+.present-body .slide.slide-text {
+    padding-top: 3%;
+}
+
 .present-body .slide.slide-text .slide-content {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
     align-items: center;
     gap: 20px;
-    padding: 8%;
+    padding: 0 8%;
     text-align: left;
     width: 100%;
     max-width: 1100px;
@@ -1243,14 +1252,14 @@ body.present-body {
 }
 
 .present-body .slide.slide-text .slide-text-title {
-    font-size: clamp(32px, 3.8vw, 54px);
+    font-size: calc(clamp(32px, 3.8vw, 54px) * var(--present-scale, 1));
     font-weight: 700;
     text-align: center;
     color: var(--present-text);
 }
 
 .present-body .slide.slide-text .slide-text-body {
-    font-size: clamp(20px, 2.2vw, 32px);
+    font-size: calc(clamp(20px, 2.2vw, 32px) * var(--present-scale, 1));
     line-height: 1.55;
     color: var(--present-text);
     width: 100%;
@@ -1277,6 +1286,7 @@ body.present-body {
 
 .present-body .slide.slide-media {
     background: var(--present-slide-default-bg);
+    padding-top: 3%;
 }
 
 .present-body .slide.slide-media .slide-content {
@@ -1303,11 +1313,13 @@ body.present-body {
 .present-body .slide.slide-media[data-fit="contain"] img {
     width: 100%;
     object-fit: contain;
+    object-position: center top;
 }
 
 .present-body .slide.slide-media[data-fit="cover"] img {
     width: 100%;
     object-fit: cover;
+    object-position: center top;
 }
 
 .present-body .slide.slide-media[data-fit="none"] img {
@@ -1325,7 +1337,7 @@ body.present-body {
     bottom: 24px;
     text-align: center;
     color: var(--present-text);
-    font-size: 18px;
+    font-size: calc(18px * var(--present-scale, 1));
     text-shadow: 0 1px 6px var(--present-body-bg);
     pointer-events: none;
 }
@@ -1384,11 +1396,11 @@ body.present-body {
 /* 슬라이드 배경 이미지 */
 body.present-body {
     --present-bg-image: none;
-    --present-content-box: rgba(255, 255, 255, 0.7);
+    --present-overlay: rgba(255, 255, 255, 0.7);
 }
 
 body.present-body.dark {
-    --present-content-box: rgba(0, 0, 0, 0.7);
+    --present-overlay: rgba(0, 0, 0, 0.7);
 }
 
 body.present-body.has-bg-image .slide:not(.slide-blank) {
@@ -1396,22 +1408,26 @@ body.present-body.has-bg-image .slide:not(.slide-blank) {
     background-size: cover !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
+    position: relative;
 }
 
-body.present-body.has-bg-image .slide:not(.slide-blank) .slide-content {
-    background: var(--present-content-box);
-    border-radius: 24px;
-    padding: 40px 24px 64px;
+/* 빈 페이지를 제외한 모든 슬라이드에 풀 슬라이드 오버레이를 깐다. */
+body.present-body.has-bg-image .slide:not(.slide-blank)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--present-overlay);
+    pointer-events: none;
+    z-index: 0;
+}
+
+body.present-body.has-bg-image .slide:not(.slide-blank) > * {
+    position: relative;
+    z-index: 1;
 }
 
 body.present-body.has-bg-image .slide.slide-media {
     background-color: transparent !important;
-}
-
-body.present-body.has-bg-image .slide.slide-media .slide-content {
-    background: none;
-    border-radius: 0;
-    padding: 0;
 }
 
 body.present-body.has-bg-image .slide.slide-blank {
@@ -1420,10 +1436,6 @@ body.present-body.has-bg-image .slide.slide-blank {
     background-position: center !important;
     background-repeat: no-repeat !important;
     background-color: transparent !important;
-}
-
-body.present-body.has-bg-image .slide.slide-blank .slide-content {
-    background: none;
 }
 
 /* 테마 토글 아이콘 */
@@ -1451,13 +1463,13 @@ body.present-body.dark .present-sidebar {
 /* 다크모드: 메인 슬라이드 배경과 텍스트 반전 */
 body.present-body.dark .slide { background: #000; color: #fff; }
 body.present-body.dark .slide .slide-title,
-body.present-body.dark .slide .hymn-title,
 body.present-body.dark .slide .hymn-subtitle,
 body.present-body.dark .slide .hymn-meta,
-body.present-body.dark .slide .lyrics-korean,
 body.present-body.dark .slide .lyrics-english,
 body.present-body.dark .slide .verse-badge,
 body.present-body.dark .slide .chorus-badge { color: #bbb; }
+body.present-body.dark .slide .hymn-title,
+body.present-body.dark .slide .lyrics-korean { color: #fff; }
 body.present-body.dark .slide .verse-badge .current,
 body.present-body.dark .slide .chorus-badge .current { color: var(--present-accent); }
 body.present-body.dark .present-slide-counter { background: rgba(0, 0, 0, 0.7); }

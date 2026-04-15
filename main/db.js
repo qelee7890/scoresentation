@@ -11,20 +11,35 @@ function normalizeSongId(payload, fallback = "") {
     return String(payload.id || payload.number || fallback || "").trim();
 }
 
+function openReadonlyIfExists(dbPath) {
+    if (!dbPath || !fs.existsSync(dbPath)) return null;
+    try {
+        const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+        db.pragma("query_only = ON");
+        return db;
+    } catch (err) {
+        console.warn(`[baseline] open failed: ${dbPath}: ${err.message}`);
+        return null;
+    }
+}
+
 // ─────────────────────────────────────────────
-// Hymn Repository
+// Hymn Repository (baseline + user overlay)
 // ─────────────────────────────────────────────
 
 export class HymnRepository {
-    constructor(dbPath) {
-        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-        this.db = new Database(dbPath);
-        this.db.pragma("journal_mode = WAL");
-        this._initialize();
+    constructor(baselineDbPath, userDbPath) {
+        fs.mkdirSync(path.dirname(userDbPath), { recursive: true });
+        this.userDb = new Database(userDbPath);
+        this.userDb.pragma("journal_mode = WAL");
+        this._initUserSchema();
+
+        this.baselineDb = openReadonlyIfExists(baselineDbPath);
+        if (this.baselineDb) this._verifyBaselineSchema();
     }
 
-    _initialize() {
-        this.db.exec(`
+    _initUserSchema() {
+        this.userDb.exec(`
             CREATE TABLE IF NOT EXISTS saved_hymns (
                 number TEXT PRIMARY KEY,
                 title TEXT NOT NULL DEFAULT '',
@@ -34,8 +49,21 @@ export class HymnRepository {
                 time_signature TEXT NOT NULL DEFAULT '',
                 hymn_json TEXT NOT NULL,
                 updated_at TEXT NOT NULL
-            )
+            );
+            CREATE TABLE IF NOT EXISTS user_tombstones (
+                number TEXT PRIMARY KEY,
+                deleted_at TEXT NOT NULL
+            );
         `);
+    }
+
+    _verifyBaselineSchema() {
+        try {
+            this.baselineDb.prepare("SELECT number FROM saved_hymns LIMIT 1").get();
+        } catch (err) {
+            console.warn(`[baseline] schema mismatch, ignoring: ${err.message}`);
+            this.baselineDb = null;
+        }
     }
 
     _rowToItem(row) {
@@ -54,23 +82,61 @@ export class HymnRepository {
         };
     }
 
-    listHymns() {
-        const rows = this.db.prepare(`
+    _selectAll(db) {
+        return db.prepare(`
             SELECT number, title, new_number, composer, key_signature, time_signature, hymn_json, updated_at
             FROM saved_hymns
-            ORDER BY CASE WHEN number GLOB '[0-9]*' THEN 0 ELSE 1 END,
-                     CAST(number AS INTEGER),
-                     number
         `).all();
-        return rows.map((row) => this._rowToItem(row));
     }
 
-    getHymn(number) {
-        const row = this.db.prepare(`
+    _selectOne(db, number) {
+        return db.prepare(`
             SELECT number, title, new_number, composer, key_signature, time_signature, hymn_json, updated_at
             FROM saved_hymns WHERE number = ?
         `).get(number);
-        return row ? this._rowToItem(row) : null;
+    }
+
+    _tombstoneSet() {
+        return new Set(
+            this.userDb.prepare("SELECT number FROM user_tombstones").all().map((r) => r.number)
+        );
+    }
+
+    listHymns() {
+        const userRows = this._selectAll(this.userDb);
+        const userIds = new Set(userRows.map((r) => r.number));
+        const tombstones = this._tombstoneSet();
+
+        const baselineRows = this.baselineDb
+            ? this._selectAll(this.baselineDb).filter(
+                (r) => !userIds.has(r.number) && !tombstones.has(r.number)
+            )
+            : [];
+
+        const merged = [...userRows, ...baselineRows].map((row) => this._rowToItem(row));
+        merged.sort((a, b) => {
+            const aNum = /^\d+$/.test(a.number);
+            const bNum = /^\d+$/.test(b.number);
+            if (aNum && !bNum) return -1;
+            if (!aNum && bNum) return 1;
+            if (aNum && bNum) return Number(a.number) - Number(b.number);
+            return a.number < b.number ? -1 : a.number > b.number ? 1 : 0;
+        });
+        return merged;
+    }
+
+    getHymn(number) {
+        const tomb = this.userDb.prepare("SELECT 1 FROM user_tombstones WHERE number = ?").get(number);
+        if (tomb) return null;
+
+        const userRow = this._selectOne(this.userDb, number);
+        if (userRow) return this._rowToItem(userRow);
+
+        if (this.baselineDb) {
+            const baseRow = this._selectOne(this.baselineDb, number);
+            if (baseRow) return this._rowToItem(baseRow);
+        }
+        return null;
     }
 
     saveHymn(number, hymn) {
@@ -95,9 +161,13 @@ export class HymnRepository {
         const updatedAt = utcNowIso();
         const payload = JSON.stringify(hymn);
 
-        const existing = this.db.prepare("SELECT 1 FROM saved_hymns WHERE number = ?").get(normalizedNumber);
+        const existedInUser = !!this._selectOne(this.userDb, normalizedNumber);
+        const existedInBaseline = this.baselineDb
+            ? !!this._selectOne(this.baselineDb, normalizedNumber)
+            : false;
 
-        this.db.prepare(`
+        this.userDb.prepare("DELETE FROM user_tombstones WHERE number = ?").run(normalizedNumber);
+        this.userDb.prepare(`
             INSERT INTO saved_hymns (number, title, new_number, composer, key_signature, time_signature, hymn_json, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(number) DO UPDATE SET
@@ -122,32 +192,50 @@ export class HymnRepository {
         const item = this.getHymn(normalizedNumber);
         if (!item) throw new Error("저장 직후 곡 데이터를 다시 읽지 못했습니다.");
 
-        return [item, !existing];
+        const isNew = !existedInUser && !existedInBaseline;
+        return [item, isNew];
     }
 
     deleteHymn(number) {
-        const result = this.db.prepare("DELETE FROM saved_hymns WHERE number = ?").run(number);
-        return result.changes > 0;
+        const userResult = this.userDb.prepare("DELETE FROM saved_hymns WHERE number = ?").run(number);
+        const inBaseline = this.baselineDb
+            ? !!this._selectOne(this.baselineDb, number)
+            : false;
+
+        if (inBaseline) {
+            this.userDb.prepare(`
+                INSERT INTO user_tombstones (number, deleted_at) VALUES (?, ?)
+                ON CONFLICT(number) DO UPDATE SET deleted_at = excluded.deleted_at
+            `).run(number, utcNowIso());
+            return true;
+        }
+        return userResult.changes > 0;
     }
 }
 
 // ─────────────────────────────────────────────
-// Setlist & Media Repository
+// Setlist & Media Repository (baseline + user overlay)
 // ─────────────────────────────────────────────
 
 const VALID_ITEM_TYPES = new Set(["score", "blank", "text", "media"]);
 
+// User-created setlists use IDs >= USER_ID_OFFSET so they never collide with baseline.
+const USER_ID_OFFSET = 1_000_000_000;
+
 export class SetlistRepository {
-    constructor(dbPath) {
-        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-        this.db = new Database(dbPath);
-        this.db.pragma("journal_mode = WAL");
-        this.db.pragma("foreign_keys = ON");
-        this._initialize();
+    constructor(userDbPath, baselineDbPath = null) {
+        fs.mkdirSync(path.dirname(userDbPath), { recursive: true });
+        this.userDb = new Database(userDbPath);
+        this.userDb.pragma("journal_mode = WAL");
+        this.userDb.pragma("foreign_keys = ON");
+        this._initUserSchema();
+
+        this.baselineDb = openReadonlyIfExists(baselineDbPath);
+        if (this.baselineDb) this._verifyBaselineSchema();
     }
 
-    _initialize() {
-        this.db.exec(`
+    _initUserSchema() {
+        this.userDb.exec(`
             CREATE TABLE IF NOT EXISTS setlists (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL DEFAULT '',
@@ -156,47 +244,103 @@ export class SetlistRepository {
                 settings TEXT NOT NULL DEFAULT '{}'
             )
         `);
-        try { this.db.exec("ALTER TABLE setlists ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'"); } catch (_) { /* already exists */ }
-        this.db.exec(`
+        try { this.userDb.exec("ALTER TABLE setlists ADD COLUMN settings TEXT NOT NULL DEFAULT '{}'"); } catch (_) { /* already exists */ }
+        this.userDb.exec(`
             CREATE TABLE IF NOT EXISTS setlist_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 setlist_id INTEGER NOT NULL REFERENCES setlists(id) ON DELETE CASCADE,
                 position INTEGER NOT NULL,
                 item_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}'
-            )
-        `);
-        this.db.exec("CREATE INDEX IF NOT EXISTS idx_setlist_items_setlist ON setlist_items(setlist_id, position)");
-        this.db.exec(`
+            );
+            CREATE INDEX IF NOT EXISTS idx_setlist_items_setlist ON setlist_items(setlist_id, position);
             CREATE TABLE IF NOT EXISTS media (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 filename TEXT NOT NULL,
                 mime TEXT NOT NULL DEFAULT '',
                 size INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
-            )
+            );
+            CREATE TABLE IF NOT EXISTS setlist_tombstones (
+                id INTEGER PRIMARY KEY,
+                deleted_at TEXT NOT NULL
+            );
         `);
+        this._ensureUserAutoincrement();
     }
 
-    listSetlists() {
-        return this.db.prepare(`
-            SELECT s.id, s.name, s.created_at, s.updated_at,
-                   (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
-            FROM setlists s ORDER BY s.updated_at DESC, s.id DESC
-        `).all().map((row) => ({
+    _ensureUserAutoincrement() {
+        const row = this.userDb.prepare(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'setlists'"
+        ).get();
+        const current = row ? Number(row.seq) : 0;
+        if (current < USER_ID_OFFSET) {
+            const maxId = this.userDb.prepare("SELECT MAX(id) AS m FROM setlists").get();
+            const desiredSeed = Math.max(USER_ID_OFFSET - 1, Number(maxId && maxId.m) || 0);
+            if (row) {
+                this.userDb.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'setlists'").run(desiredSeed);
+            } else {
+                this.userDb.prepare("INSERT INTO sqlite_sequence (name, seq) VALUES ('setlists', ?)").run(desiredSeed);
+            }
+        }
+    }
+
+    _verifyBaselineSchema() {
+        try {
+            this.baselineDb.prepare("SELECT id FROM setlists LIMIT 1").get();
+        } catch (err) {
+            console.warn(`[baseline setlists] schema mismatch, ignoring: ${err.message}`);
+            this.baselineDb = null;
+        }
+    }
+
+    _tombstoneSet() {
+        return new Set(
+            this.userDb.prepare("SELECT id FROM setlist_tombstones").all().map((r) => Number(r.id))
+        );
+    }
+
+    _summaryFromRow(row, itemCount) {
+        return {
             id: row.id,
             name: row.name,
             createdAt: row.created_at,
             updatedAt: row.updated_at,
-            itemCount: row.item_count,
-        }));
+            itemCount,
+        };
     }
 
-    getSetlist(id) {
-        const row = this.db.prepare("SELECT id, name, created_at, updated_at, settings FROM setlists WHERE id = ?").get(id);
+    listSetlists() {
+        const userRows = this.userDb.prepare(`
+            SELECT s.id, s.name, s.created_at, s.updated_at,
+                   (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
+            FROM setlists s
+        `).all();
+        const userIds = new Set(userRows.map((r) => Number(r.id)));
+        const tombstones = this._tombstoneSet();
+
+        let baselineRows = [];
+        if (this.baselineDb) {
+            baselineRows = this.baselineDb.prepare(`
+                SELECT s.id, s.name, s.created_at, s.updated_at,
+                       (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
+                FROM setlists s
+            `).all().filter((r) => !userIds.has(Number(r.id)) && !tombstones.has(Number(r.id)));
+        }
+
+        const merged = [...userRows, ...baselineRows].map((r) => this._summaryFromRow(r, r.item_count));
+        merged.sort((a, b) => {
+            if (a.updatedAt === b.updatedAt) return b.id - a.id;
+            return a.updatedAt < b.updatedAt ? 1 : -1;
+        });
+        return merged;
+    }
+
+    _getSetlistFromDb(db, id) {
+        const row = db.prepare("SELECT id, name, created_at, updated_at, settings FROM setlists WHERE id = ?").get(id);
         if (!row) return null;
 
-        const itemRows = this.db.prepare(`
+        const itemRows = db.prepare(`
             SELECT id, position, item_type, payload_json FROM setlist_items
             WHERE setlist_id = ? ORDER BY position ASC, id ASC
         `).all(id);
@@ -220,50 +364,93 @@ export class SetlistRepository {
         };
     }
 
+    getSetlist(id) {
+        const numId = Number(id);
+        const tomb = this.userDb.prepare("SELECT 1 FROM setlist_tombstones WHERE id = ?").get(numId);
+        if (tomb) return null;
+
+        const fromUser = this._getSetlistFromDb(this.userDb, numId);
+        if (fromUser) return fromUser;
+
+        if (this.baselineDb) {
+            return this._getSetlistFromDb(this.baselineDb, numId);
+        }
+        return null;
+    }
+
     createSetlist(name, items, settings) {
         const now = utcNowIso();
         const cleanName = (name || "").trim() || "새 셋리스트";
         const settingsJson = JSON.stringify(settings || {});
 
-        const result = this.db.prepare(
+        const result = this.userDb.prepare(
             "INSERT INTO setlists (name, created_at, updated_at, settings) VALUES (?, ?, ?, ?)"
         ).run(cleanName, now, now, settingsJson);
 
-        const id = result.lastInsertRowid;
+        const id = Number(result.lastInsertRowid);
         if (items) this._replaceItems(id, items);
-
         return this.getSetlist(id);
     }
 
     updateSetlist(id, name, items, settings) {
+        const numId = Number(id);
         const now = utcNowIso();
-        const existing = this.db.prepare("SELECT 1 FROM setlists WHERE id = ?").get(id);
-        if (!existing) return null;
+
+        const tomb = this.userDb.prepare("SELECT 1 FROM setlist_tombstones WHERE id = ?").get(numId);
+        if (tomb) return null;
+
+        const userExists = !!this.userDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId);
+
+        if (!userExists) {
+            // If this is a baseline setlist, copy it into user DB (copy-on-write) using the same id.
+            if (!this.baselineDb) return null;
+            const base = this._getSetlistFromDb(this.baselineDb, numId);
+            if (!base) return null;
+
+            this.userDb.prepare(
+                "INSERT INTO setlists (id, name, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?)"
+            ).run(numId, base.name, base.createdAt, now, JSON.stringify(base.settings || {}));
+
+            this._replaceItems(numId, base.items.map((it) => ({ type: it.type, payload: it.payload })));
+        }
 
         if (name !== null && name !== undefined) {
             const cleanName = (name || "").trim() || "새 셋리스트";
-            this.db.prepare("UPDATE setlists SET name = ?, updated_at = ? WHERE id = ?").run(cleanName, now, id);
+            this.userDb.prepare("UPDATE setlists SET name = ?, updated_at = ? WHERE id = ?").run(cleanName, now, numId);
         } else {
-            this.db.prepare("UPDATE setlists SET updated_at = ? WHERE id = ?").run(now, id);
+            this.userDb.prepare("UPDATE setlists SET updated_at = ? WHERE id = ?").run(now, numId);
         }
         if (settings !== null && settings !== undefined) {
-            this.db.prepare("UPDATE setlists SET settings = ? WHERE id = ?").run(JSON.stringify(settings), id);
+            this.userDb.prepare("UPDATE setlists SET settings = ? WHERE id = ?").run(JSON.stringify(settings), numId);
         }
         if (items !== null && items !== undefined) {
-            this._replaceItems(id, items);
+            this._replaceItems(numId, items);
         }
 
-        return this.getSetlist(id);
+        return this.getSetlist(numId);
     }
 
     deleteSetlist(id) {
-        const result = this.db.prepare("DELETE FROM setlists WHERE id = ?").run(id);
-        return result.changes > 0;
+        const numId = Number(id);
+        const userResult = this.userDb.prepare("DELETE FROM setlists WHERE id = ?").run(numId);
+
+        const inBaseline = this.baselineDb
+            ? !!this.baselineDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId)
+            : false;
+
+        if (inBaseline) {
+            this.userDb.prepare(`
+                INSERT INTO setlist_tombstones (id, deleted_at) VALUES (?, ?)
+                ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at
+            `).run(numId, utcNowIso());
+            return true;
+        }
+        return userResult.changes > 0;
     }
 
     _replaceItems(setlistId, items) {
-        this.db.prepare("DELETE FROM setlist_items WHERE setlist_id = ?").run(setlistId);
-        const insert = this.db.prepare(`
+        this.userDb.prepare("DELETE FROM setlist_items WHERE setlist_id = ?").run(setlistId);
+        const insert = this.userDb.prepare(`
             INSERT INTO setlist_items (setlist_id, position, item_type, payload_json) VALUES (?, ?, ?, ?)
         `);
         for (let i = 0; i < items.length; i++) {
@@ -276,15 +463,15 @@ export class SetlistRepository {
         }
     }
 
-    // ── Media ──
+    // ── Media (user only; baseline media is served from read-only dir via protocol handler) ──
 
     registerMedia(filename, mime, size) {
         const now = utcNowIso();
-        const result = this.db.prepare(
+        const result = this.userDb.prepare(
             "INSERT INTO media (filename, mime, size, created_at) VALUES (?, ?, ?, ?)"
         ).run(filename, mime, size, now);
         return {
-            id: result.lastInsertRowid,
+            id: Number(result.lastInsertRowid),
             filename, mime, size,
             createdAt: now,
             url: `/media/${filename}`,
@@ -292,7 +479,7 @@ export class SetlistRepository {
     }
 
     getMedia(id) {
-        const row = this.db.prepare("SELECT id, filename, mime, size, created_at FROM media WHERE id = ?").get(id);
+        const row = this.userDb.prepare("SELECT id, filename, mime, size, created_at FROM media WHERE id = ?").get(id);
         if (!row) return null;
         return { id: row.id, filename: row.filename, mime: row.mime, size: row.size, createdAt: row.created_at, url: `/media/${row.filename}` };
     }
@@ -300,12 +487,12 @@ export class SetlistRepository {
     deleteMedia(id) {
         const media = this.getMedia(id);
         if (!media) return null;
-        this.db.prepare("DELETE FROM media WHERE id = ?").run(id);
+        this.userDb.prepare("DELETE FROM media WHERE id = ?").run(id);
         return media;
     }
 
     listMedia() {
-        return this.db.prepare("SELECT id, filename, mime, size, created_at FROM media").all().map((r) => ({
+        return this.userDb.prepare("SELECT id, filename, mime, size, created_at FROM media").all().map((r) => ({
             id: r.id, filename: r.filename, mime: r.mime, size: r.size, createdAt: r.created_at,
         }));
     }
@@ -313,14 +500,34 @@ export class SetlistRepository {
     deleteMediaRowsByFilenames(filenames) {
         if (!filenames.length) return 0;
         const placeholders = filenames.map(() => "?").join(",");
-        return this.db.prepare(`DELETE FROM media WHERE filename IN (${placeholders})`).run(...filenames).changes;
+        return this.userDb.prepare(`DELETE FROM media WHERE filename IN (${placeholders})`).run(...filenames).changes;
     }
 
     iterSetlistPayloadJson() {
-        const items = this.db.prepare("SELECT payload_json FROM setlist_items").all();
-        const setlists = this.db.prepare("SELECT settings FROM setlists").all();
-        const blobs = items.map((r) => r.payload_json || "");
-        blobs.push(...setlists.map((r) => r.settings || ""));
+        // Include both user-visible setlists (user + non-tombstoned baseline) so media
+        // referenced by baseline setlists isn't treated as orphan.
+        const blobs = [];
+        const userItems = this.userDb.prepare("SELECT payload_json FROM setlist_items").all();
+        const userSettings = this.userDb.prepare("SELECT settings FROM setlists").all();
+        blobs.push(...userItems.map((r) => r.payload_json || ""));
+        blobs.push(...userSettings.map((r) => r.settings || ""));
+
+        if (this.baselineDb) {
+            const tombstones = this._tombstoneSet();
+            const userIds = new Set(
+                this.userDb.prepare("SELECT id FROM setlists").all().map((r) => Number(r.id))
+            );
+            const baselineSetlists = this.baselineDb.prepare("SELECT id, settings FROM setlists").all();
+            for (const s of baselineSetlists) {
+                const idNum = Number(s.id);
+                if (userIds.has(idNum) || tombstones.has(idNum)) continue;
+                blobs.push(s.settings || "");
+                const items = this.baselineDb.prepare(
+                    "SELECT payload_json FROM setlist_items WHERE setlist_id = ?"
+                ).all(idNum);
+                blobs.push(...items.map((r) => r.payload_json || ""));
+            }
+        }
         return blobs;
     }
 }
