@@ -1,6 +1,6 @@
 {
   "name": "scoresentation",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "type": "module",
   "main": "main.js",
@@ -9,6 +9,7 @@
     "start": "electron .",
     "rebuild": "electron-rebuild",
     "build": "electron-builder --win",
+    "build-icon": "node tools/build-icon.mjs",
     "publish": "electron-builder --win --publish always",
     "server": "python tools/server.py"
   },
@@ -39,7 +40,8 @@
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "nsis": {
       "oneClick": false,
@@ -55,7 +57,9 @@
   "devDependencies": {
     "electron": "^41.2.0",
     "electron-builder": "^26.8.1",
-    "electron-rebuild": "^3.2.9"
+    "electron-rebuild": "^3.2.9",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.34.5"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0",

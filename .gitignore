@@ -43,3 +43,10 @@ docs/
 
 # DB backups
 *.db.bak.*
+
+# Icon build artifacts / reference sources (commit only icon.svg and icon.ico)
+build/icon.png
+build/music.png
+build/presentation.png
+build/music-notes-svgrepo-com.svg
+build/presentation-svgrepo-com.svg
