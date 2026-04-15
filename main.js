@@ -287,18 +287,45 @@ function cleanupOrphanMediaSafe() {
 // ── Auto updater ──
 
 function setupAutoUpdater() {
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
 
     autoUpdater.on("update-available", (info) => {
         console.log(`[updater] Update available: ${info.version}`);
+        dialog.showMessageBox(mainWindow, {
+            type: "question",
+            title: "업데이트 확인",
+            message: `새 버전 ${info.version}이(가) 있습니다.`,
+            detail: "지금 다운로드해서 설치하시겠습니까?",
+            buttons: ["다운로드", "나중에"],
+            defaultId: 0,
+            cancelId: 1,
+        }).then((result) => {
+            if (result.response === 0) {
+                autoUpdater.downloadUpdate().catch((err) => {
+                    console.error("[updater] download error:", err.message);
+                    dialog.showMessageBox(mainWindow, {
+                        type: "error",
+                        title: "업데이트 다운로드 실패",
+                        message: "업데이트를 다운로드하지 못했습니다.",
+                        detail: err.message,
+                        buttons: ["확인"],
+                    });
+                });
+            }
+        });
+    });
+
+    autoUpdater.on("update-not-available", (info) => {
+        console.log(`[updater] Up to date: ${info.version}`);
     });
 
     autoUpdater.on("update-downloaded", (info) => {
         dialog.showMessageBox(mainWindow, {
             type: "info",
             title: "업데이트 준비 완료",
-            message: `새 버전 ${info.version}이(가) 다운로드되었습니다.\n지금 재시작하시겠습니까?`,
+            message: `새 버전 ${info.version}이(가) 다운로드되었습니다.`,
+            detail: "지금 재시작하시겠습니까?",
             buttons: ["재시작", "나중에"],
             defaultId: 0,
         }).then((result) => {
@@ -312,7 +339,7 @@ function setupAutoUpdater() {
         console.error("[updater] error:", err.message);
     });
 
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.checkForUpdates();
 }
 
 // ── App lifecycle ──
