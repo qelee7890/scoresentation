@@ -286,6 +286,12 @@ function cleanupOrphanMediaSafe() {
 
 // ── Auto updater ──
 
+function sendUpdateEventToRenderer(channel, payload) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, payload);
+    }
+}
+
 function setupAutoUpdater() {
     autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
@@ -302,8 +308,10 @@ function setupAutoUpdater() {
             cancelId: 1,
         }).then((result) => {
             if (result.response === 0) {
+                sendUpdateEventToRenderer("update:download-started", { version: info.version });
                 autoUpdater.downloadUpdate().catch((err) => {
                     console.error("[updater] download error:", err.message);
+                    sendUpdateEventToRenderer("update:download-error", { message: err.message });
                     dialog.showMessageBox(mainWindow, {
                         type: "error",
                         title: "업데이트 다운로드 실패",
@@ -316,27 +324,40 @@ function setupAutoUpdater() {
         });
     });
 
+    autoUpdater.on("download-progress", (progress) => {
+        sendUpdateEventToRenderer("update:download-progress", {
+            percent: progress.percent || 0,
+            transferred: progress.transferred || 0,
+            total: progress.total || 0,
+            bytesPerSecond: progress.bytesPerSecond || 0,
+        });
+    });
+
     autoUpdater.on("update-not-available", (info) => {
         console.log(`[updater] Up to date: ${info.version}`);
     });
 
     autoUpdater.on("update-downloaded", (info) => {
+        sendUpdateEventToRenderer("update:downloaded", { version: info.version });
         dialog.showMessageBox(mainWindow, {
             type: "info",
             title: "업데이트 준비 완료",
             message: `새 버전 ${info.version}이(가) 다운로드되었습니다.`,
-            detail: "지금 재시작하시겠습니까?",
+            detail: "지금 재시작해서 설치하시겠습니까?",
             buttons: ["재시작", "나중에"],
             defaultId: 0,
         }).then((result) => {
             if (result.response === 0) {
-                autoUpdater.quitAndInstall();
+                sendUpdateEventToRenderer("update:installing", {});
+                // (isSilent=true, isForceRunAfter=true) → NSIS UI를 띄우지 않고 설치 후 자동 재실행.
+                setTimeout(() => autoUpdater.quitAndInstall(true, true), 300);
             }
         });
     });
 
     autoUpdater.on("error", (err) => {
         console.error("[updater] error:", err.message);
+        sendUpdateEventToRenderer("update:download-error", { message: err.message });
     });
 
     autoUpdater.checkForUpdates();

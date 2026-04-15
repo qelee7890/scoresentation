@@ -261,7 +261,67 @@
             await this.loadImageFolders();
             this.bindControls();
             this.listenForUpdates();
+            this.setupUpdateProgressUI();
             this.renderAll();
+        }
+
+        setupUpdateProgressUI() {
+            if (!window.electronAPI?.onUpdateDownloadProgress) return;
+
+            const panel = document.createElement("div");
+            panel.id = "update-progress-panel";
+            panel.hidden = true;
+            panel.innerHTML = `
+                <div class="update-progress-label"></div>
+                <div class="update-progress-bar"><div class="update-progress-bar-fill"></div></div>
+                <div class="update-progress-meta"></div>
+            `;
+            document.body.appendChild(panel);
+
+            const labelEl = panel.querySelector(".update-progress-label");
+            const fillEl = panel.querySelector(".update-progress-bar-fill");
+            const metaEl = panel.querySelector(".update-progress-meta");
+
+            const fmtMB = (b) => (b / 1024 / 1024).toFixed(1);
+            const fmtSpeed = (bps) => {
+                if (!bps) return "";
+                const mbps = bps / 1024 / 1024;
+                return mbps >= 1 ? `${mbps.toFixed(1)} MB/s` : `${(bps / 1024).toFixed(0)} KB/s`;
+            };
+
+            window.electronAPI.onUpdateDownloadStarted((d) => {
+                panel.hidden = false;
+                panel.classList.remove("is-indeterminate");
+                labelEl.textContent = `새 버전 ${d.version} 다운로드 중…`;
+                fillEl.style.width = "0%";
+                metaEl.textContent = "";
+            });
+
+            window.electronAPI.onUpdateDownloadProgress((d) => {
+                panel.hidden = false;
+                const pct = Math.max(0, Math.min(100, d.percent || 0));
+                fillEl.style.width = `${pct.toFixed(1)}%`;
+                metaEl.textContent = `${pct.toFixed(1)}% · ${fmtMB(d.transferred)}/${fmtMB(d.total)} MB · ${fmtSpeed(d.bytesPerSecond)}`;
+            });
+
+            window.electronAPI.onUpdateDownloaded(() => {
+                labelEl.textContent = "다운로드 완료";
+                fillEl.style.width = "100%";
+                metaEl.textContent = "재시작하면 설치가 진행됩니다.";
+            });
+
+            window.electronAPI.onUpdateInstalling(() => {
+                panel.classList.add("is-indeterminate");
+                labelEl.textContent = "설치 중…";
+                fillEl.style.width = "100%";
+                metaEl.textContent = "잠시 후 자동으로 재시작됩니다.";
+            });
+
+            window.electronAPI.onUpdateDownloadError((d) => {
+                labelEl.textContent = "업데이트 실패";
+                metaEl.textContent = d?.message || "";
+                setTimeout(() => { panel.hidden = true; }, 6000);
+            });
         }
 
         async loadImageFolders() {

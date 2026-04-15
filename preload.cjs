@@ -30,4 +30,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
     // Unsaved-changes tracking (per window)
     setDirty: (value) => ipcRenderer.send("app:set-dirty", !!value),
+
+    // Auto-update events (main window only)
+    onUpdateDownloadStarted: (cb) => ipcRenderer.on("update:download-started", (_e, d) => cb(d)),
+    onUpdateDownloadProgress: (cb) => ipcRenderer.on("update:download-progress", (_e, d) => cb(d)),
+    onUpdateDownloaded: (cb) => ipcRenderer.on("update:downloaded", (_e, d) => cb(d)),
+    onUpdateDownloadError: (cb) => ipcRenderer.on("update:download-error", (_e, d) => cb(d)),
+    onUpdateInstalling: (cb) => ipcRenderer.on("update:installing", (_e, d) => cb(d)),
 });
