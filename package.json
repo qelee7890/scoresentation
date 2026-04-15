@@ -47,7 +47,8 @@
     "publish": {
       "provider": "github",
       "owner": "qelee7890",
-      "repo": "scoresentation"
+      "repo": "scoresentation",
+      "releaseType": "release"
     }
   },
   "devDependencies": {
