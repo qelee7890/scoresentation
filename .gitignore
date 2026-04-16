@@ -44,7 +44,9 @@ docs/
 # DB backups
 *.db.bak.*
 
-# Icon build artifacts / reference sources (commit only icon.svg and icon.ico)
+# Icon build artifacts / reference sources (commit only music_presenter_icon.ico)
+build/icon.ico
+build/icon.svg
 build/icon.png
 build/music.png
 build/presentation.png
