@@ -1,6 +1,6 @@
 {
   "name": "scoresentation",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "private": true,
   "type": "module",
   "main": "main.js",
@@ -41,7 +41,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/music_presenter_icon.ico"
     },
     "nsis": {
       "oneClick": false,

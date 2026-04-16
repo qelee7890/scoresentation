@@ -1946,7 +1946,6 @@
                     html: `
                         <div class="slide slide-text">
                             <div class="slide-content">
-                                ${title ? `<div class="slide-text-title">${escapeHtml(title)}</div>` : ""}
                                 <div class="slide-text-body">${renderMarkdown(body)}</div>
                             </div>
                         </div>
@@ -1994,7 +1993,6 @@
                     html: `
                         <div class="slide slide-order">
                             <div class="slide-content">
-                                ${title ? `<div class="slide-order-title">${escapeHtml(title)}</div>` : ""}
                                 ${body.trim() ? `<div class="slide-order-body">${renderMarkdown(body)}</div>` : ""}
                                 <div class="slide-order-list">${listHtml}</div>
                             </div>
