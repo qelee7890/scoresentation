@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     createSetlist: (data) => ipcRenderer.invoke("setlists:create", data),
     updateSetlist: (id, data) => ipcRenderer.invoke("setlists:update", id, data),
     deleteSetlist: (id) => ipcRenderer.invoke("setlists:delete", id),
+    exportSetlist: (id) => ipcRenderer.invoke("setlists:export", id),
+    importSetlist: () => ipcRenderer.invoke("setlists:import"),
 
     // Media
     uploadMedia: (arrayBuffer, filename, mime) => ipcRenderer.invoke("media:upload", arrayBuffer, filename, mime),

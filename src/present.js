@@ -208,6 +208,7 @@
                 imageMoveTarget: document.getElementById("present-image-move-target"),
                 loadModal: document.getElementById("present-load-modal"),
                 loadList: document.getElementById("present-load-list"),
+                importBtn: document.getElementById("present-import-btn"),
                 itemMenu: document.getElementById("present-item-menu"),
                 moveTarget: document.getElementById("present-move-target"),
                 zoomIn: document.getElementById("present-zoom-in"),
@@ -466,6 +467,7 @@
             // 액션 바
             this.dom.saveBtn.addEventListener("click", () => this.saveSetlist());
             this.dom.loadBtn.addEventListener("click", () => this.openLoadModal());
+            this.dom.importBtn.addEventListener("click", () => this.importSetlist());
             this.dom.newBtn.addEventListener("click", () => this.newSetlist());
             this.dom.themeToggle.addEventListener("click", () => this.toggleTheme());
             this.dom.zoomIn.addEventListener("click", () => this.adjustZoom(0.1));
@@ -805,11 +807,18 @@
                         <span class="present-load-row-name">${escapeHtml(s.name || "(이름 없음)")}</span>
                         <span class="present-load-row-meta">${s.itemCount || 0}개 · ${formatDate(s.updatedAt)}</span>
                     </div>
+                    <button type="button" data-export-id="${s.id}" title="내보내기">내보내기</button>
                     <button type="button" data-delete-id="${s.id}" title="삭제">삭제</button>
                 </div>
             `).join("");
             this.dom.loadList.querySelectorAll("[data-load-id]").forEach((el) => {
                 el.addEventListener("click", () => this.loadSetlist(parseInt(el.dataset.loadId, 10)));
+            });
+            this.dom.loadList.querySelectorAll("[data-export-id]").forEach((el) => {
+                el.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    this.exportSetlist(parseInt(el.dataset.exportId, 10));
+                });
             });
             this.dom.loadList.querySelectorAll("[data-delete-id]").forEach((el) => {
                 el.addEventListener("click", (event) => {
@@ -840,6 +849,7 @@
                 this.closeModal(this.dom.loadModal);
                 this.renderAll();
                 this.updateUndoRedoButtons();
+                this.checkMissingImages();
             } catch (error) {
                 this.setStatus(`불러오기 실패: ${error.message}`, "warning");
             }
@@ -863,6 +873,63 @@
                 this.renderLoadList(list);
             } catch (error) {
                 this.setStatus(`삭제 실패: ${error.message}`, "warning");
+            }
+        }
+
+        async exportSetlist(id) {
+            try {
+                const result = await window.SetlistStorage.exportSetlist(id);
+                if (result.canceled) return;
+                if (result.error) { this.setStatus(`내보내기 실패: ${result.error}`, "warning"); return; }
+                this.setStatus("셋리스트를 내보냈습니다.", "info");
+            } catch (error) {
+                this.setStatus(`내보내기 실패: ${error.message}`, "warning");
+            }
+        }
+
+        async importSetlist() {
+            try {
+                const result = await window.SetlistStorage.importSetlist();
+                if (result.canceled) return;
+                if (result.error) { this.setStatus(`들여오기 실패: ${result.error}`, "warning"); return; }
+                this.setStatus("셋리스트를 들여왔습니다.", "info");
+                const list = await window.SetlistStorage.list();
+                this.renderLoadList(list);
+            } catch (error) {
+                this.setStatus(`들여오기 실패: ${error.message}`, "warning");
+            }
+        }
+
+        async checkMissingImages() {
+            function probeImage(url) {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => resolve(true);
+                    img.onerror = () => resolve(false);
+                    img.src = url;
+                });
+            }
+            const checks = [];
+            // 배경 이미지
+            const bg = this.settings && this.settings.bgImage;
+            if (bg && bg.url) {
+                checks.push(probeImage(bg.url).then((ok) => ok ? null : { name: bg.filename || bg.url, location: "배경 이미지" }));
+            }
+            // 미디어 아이템 이미지
+            for (const item of this.items) {
+                if (item.type !== "media") continue;
+                const images = this.getMediaImages(item.payload);
+                const title = this.getMediaTitle(item.payload) || "미디어";
+                for (const img of images) {
+                    if (!img.url) continue;
+                    checks.push(probeImage(img.url).then((ok) => ok ? null : { name: img.filename || img.url, location: title }));
+                }
+            }
+            const results = await Promise.all(checks);
+            const missing = results.filter(Boolean);
+            if (missing.length) {
+                const lines = missing.map((m) => `• ${m.name} (${m.location})`).join("\n");
+                alert(`다음 이미지를 찾을 수 없습니다:\n\n${lines}`);
             }
         }
 

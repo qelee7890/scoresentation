@@ -224,6 +224,45 @@ function registerSetlistHandlers() {
         const deleted = setlistRepo.deleteSetlist(Number(id));
         return { deleted };
     });
+
+    ipcMain.handle("setlists:export", async (_event, id) => {
+        const item = setlistRepo.getSetlist(Number(id));
+        if (!item) return { error: "not found" };
+        const result = await dialog.showSaveDialog({
+            title: "셋리스트 내보내기",
+            defaultPath: `${(item.name || "setlist").replace(/[<>:"/\\|?*]/g, "_")}.json`,
+            filters: [{ name: "JSON", extensions: ["json"] }],
+        });
+        if (result.canceled) return { canceled: true };
+        const exportData = {
+            name: item.name,
+            settings: item.settings || {},
+            items: (item.items || []).map((it) => ({ type: it.type, payload: it.payload || {} })),
+        };
+        fs.writeFileSync(result.filePath, JSON.stringify(exportData, null, 2), "utf-8");
+        return { filePath: result.filePath };
+    });
+
+    ipcMain.handle("setlists:import", async () => {
+        const result = await dialog.showOpenDialog({
+            title: "셋리스트 들여오기",
+            filters: [{ name: "JSON", extensions: ["json"] }],
+            properties: ["openFile"],
+        });
+        if (result.canceled) return { canceled: true };
+        const raw = fs.readFileSync(result.filePaths[0], "utf-8");
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== "object" || !Array.isArray(data.items)) {
+            return { error: "유효하지 않은 셋리스트 파일입니다." };
+        }
+        const created = setlistRepo.createSetlist(
+            data.name || "",
+            data.items,
+            data.settings || null,
+        );
+        cleanupOrphanMediaSafe();
+        return { item: created };
+    });
 }
 
 // ── IPC: Media ──

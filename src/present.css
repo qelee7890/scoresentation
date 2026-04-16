@@ -891,6 +891,19 @@ body.present-body.dark .slide.slide-order .slide-order-entry {
     background: var(--present-panel);
 }
 
+.present-modal-action-btn {
+    padding: 6px 14px;
+    border: 1px solid var(--present-border);
+    border-radius: 6px;
+    background: var(--present-panel);
+    color: var(--present-text);
+    cursor: pointer;
+    font-size: 13px;
+}
+.present-modal-action-btn:hover {
+    background: var(--present-hover);
+}
+
 .present-modal-label {
     display: flex;
     flex-direction: column;

@@ -76,6 +76,20 @@
             return request("DELETE", `${API_BASE}/${encodeURIComponent(id)}`);
         },
 
+        async exportSetlist(id) {
+            if (useElectronAPI()) {
+                return window.electronAPI.exportSetlist(id);
+            }
+            throw new Error("내보내기는 데스크톱 앱에서만 지원됩니다.");
+        },
+
+        async importSetlist() {
+            if (useElectronAPI()) {
+                return window.electronAPI.importSetlist();
+            }
+            throw new Error("들여오기는 데스크톱 앱에서만 지원됩니다.");
+        },
+
         async uploadImage(file) {
             if (!file) throw new Error("파일이 없습니다.");
             if (useElectronAPI()) {
