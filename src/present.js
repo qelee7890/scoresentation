@@ -2157,8 +2157,8 @@
             const slides = [];
             const showNotes = hasRenderableNotes(hymn);
             const songRef = getSongReference(hymn);
-            const songTitle = getSongDisplayTitle(hymn);
             const isHymn = isHymnSong(hymn);
+            const songTitle = isHymn ? getSongDisplayTitle(hymn) : (hymn.title || "");
 
             const subtitle = isHymn && hymn.newNumber
                 ? `새찬송가 ${hymn.newNumber}장`
