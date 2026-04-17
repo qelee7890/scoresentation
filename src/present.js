@@ -208,7 +208,8 @@
                 imageMoveTarget: document.getElementById("present-image-move-target"),
                 loadModal: document.getElementById("present-load-modal"),
                 loadList: document.getElementById("present-load-list"),
-                importBtn: document.getElementById("present-import-btn"),
+                saveMenu: document.getElementById("present-save-menu"),
+                loadMenu: document.getElementById("present-load-menu"),
                 itemMenu: document.getElementById("present-item-menu"),
                 moveTarget: document.getElementById("present-move-target"),
                 zoomIn: document.getElementById("present-zoom-in"),
@@ -464,10 +465,31 @@
                 }
             });
 
-            // 액션 바
-            this.dom.saveBtn.addEventListener("click", () => this.saveSetlist());
-            this.dom.loadBtn.addEventListener("click", () => this.openLoadModal());
-            this.dom.importBtn.addEventListener("click", () => this.importSetlist());
+            // 액션 바 — 저장/불러오기 드롭다운
+            this.dom.saveBtn.addEventListener("click", (event) => {
+                event.stopPropagation();
+                this.dom.loadMenu.hidden = true;
+                this.dom.saveMenu.hidden = !this.dom.saveMenu.hidden;
+            });
+            this.dom.saveMenu.addEventListener("click", (event) => {
+                const btn = event.target.closest("[data-action]");
+                if (!btn) return;
+                this.dom.saveMenu.hidden = true;
+                if (btn.dataset.action === "save") this.saveSetlist();
+                else if (btn.dataset.action === "export") this.exportCurrentSetlist();
+            });
+            this.dom.loadBtn.addEventListener("click", (event) => {
+                event.stopPropagation();
+                this.dom.saveMenu.hidden = true;
+                this.dom.loadMenu.hidden = !this.dom.loadMenu.hidden;
+            });
+            this.dom.loadMenu.addEventListener("click", (event) => {
+                const btn = event.target.closest("[data-action]");
+                if (!btn) return;
+                this.dom.loadMenu.hidden = true;
+                if (btn.dataset.action === "load") this.openLoadModal();
+                else if (btn.dataset.action === "import") this.importSetlist();
+            });
             this.dom.newBtn.addEventListener("click", () => this.newSetlist());
             this.dom.themeToggle.addEventListener("click", () => this.toggleTheme());
             this.dom.zoomIn.addEventListener("click", () => this.adjustZoom(0.1));
@@ -491,6 +513,12 @@
             document.addEventListener("click", (event) => {
                 if (!this.dom.addMenu.hidden && !this.dom.addMenu.contains(event.target) && event.target !== this.dom.addBtn) {
                     this.dom.addMenu.hidden = true;
+                }
+                if (!this.dom.saveMenu.hidden && !this.dom.saveMenu.contains(event.target) && !this.dom.saveBtn.contains(event.target)) {
+                    this.dom.saveMenu.hidden = true;
+                }
+                if (!this.dom.loadMenu.hidden && !this.dom.loadMenu.contains(event.target) && !this.dom.loadBtn.contains(event.target)) {
+                    this.dom.loadMenu.hidden = true;
                 }
                 if (!this.dom.itemMenu.hidden && !this.dom.itemMenu.contains(event.target)) {
                     this.closeItemMenu();
@@ -807,18 +835,11 @@
                         <span class="present-load-row-name">${escapeHtml(s.name || "(이름 없음)")}</span>
                         <span class="present-load-row-meta">${s.itemCount || 0}개 · ${formatDate(s.updatedAt)}</span>
                     </div>
-                    <button type="button" data-export-id="${s.id}" title="내보내기">내보내기</button>
                     <button type="button" data-delete-id="${s.id}" title="삭제">삭제</button>
                 </div>
             `).join("");
             this.dom.loadList.querySelectorAll("[data-load-id]").forEach((el) => {
                 el.addEventListener("click", () => this.loadSetlist(parseInt(el.dataset.loadId, 10)));
-            });
-            this.dom.loadList.querySelectorAll("[data-export-id]").forEach((el) => {
-                el.addEventListener("click", (event) => {
-                    event.stopPropagation();
-                    this.exportSetlist(parseInt(el.dataset.exportId, 10));
-                });
             });
             this.dom.loadList.querySelectorAll("[data-delete-id]").forEach((el) => {
                 el.addEventListener("click", (event) => {
@@ -876,6 +897,14 @@
             }
         }
 
+        async exportCurrentSetlist() {
+            if (!this.setlistId) {
+                this.setStatus("먼저 셋리스트를 저장해 주세요.", "warning");
+                return;
+            }
+            await this.exportSetlist(this.setlistId);
+        }
+
         async exportSetlist(id) {
             try {
                 const result = await window.SetlistStorage.exportSetlist(id);
@@ -893,8 +922,10 @@
                 if (result.canceled) return;
                 if (result.error) { this.setStatus(`들여오기 실패: ${result.error}`, "warning"); return; }
                 this.setStatus("셋리스트를 들여왔습니다.", "info");
-                const list = await window.SetlistStorage.list();
-                this.renderLoadList(list);
+                // 들여온 셋리스트를 바로 로드
+                if (result.item && result.item.id) {
+                    await this.loadSetlist(result.item.id);
+                }
             } catch (error) {
                 this.setStatus(`들여오기 실패: ${error.message}`, "warning");
             }

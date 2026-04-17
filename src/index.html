@@ -26,12 +26,24 @@
                 <button id="present-new" type="button" class="present-icon-btn" title="새 셋리스트" aria-label="새 셋리스트">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
                 </button>
-                <button id="present-load" type="button" class="present-icon-btn" title="셋리스트 불러오기" aria-label="셋리스트 불러오기">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 3h11v9a2 2 0 0 1-2 2H3z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3"/></svg>
-                </button>
-                <button id="present-save" type="button" class="present-icon-btn" title="셋리스트 저장" aria-label="셋리스트 저장">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                </button>
+                <div class="present-action-menu-wrap">
+                    <button id="present-load" type="button" class="present-icon-btn" title="셋리스트 불러오기" aria-label="셋리스트 불러오기">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h5l2 3h11v9a2 2 0 0 1-2 2H3z"/><path d="M3 7V5a2 2 0 0 1 2-2h4l2 3"/></svg>
+                    </button>
+                    <div id="present-load-menu" class="present-action-dropdown" hidden>
+                        <button type="button" data-action="load">불러오기</button>
+                        <button type="button" data-action="import">들여오기</button>
+                    </div>
+                </div>
+                <div class="present-action-menu-wrap">
+                    <button id="present-save" type="button" class="present-icon-btn" title="셋리스트 저장" aria-label="셋리스트 저장">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                    </button>
+                    <div id="present-save-menu" class="present-action-dropdown" hidden>
+                        <button type="button" data-action="save">저장</button>
+                        <button type="button" data-action="export">내보내기</button>
+                    </div>
+                </div>
                 <button id="present-zoom-in" type="button" class="present-icon-btn" title="확대" aria-label="확대">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
                 </button>
@@ -264,9 +276,6 @@
             <div class="present-modal-body">
                 <div id="present-load-list" class="present-load-list"></div>
             </div>
-            <footer class="present-modal-footer">
-                <button type="button" id="present-import-btn" class="present-modal-action-btn">들여오기</button>
-            </footer>
         </div>
     </div>
 
