@@ -1332,6 +1332,38 @@
             return this.normalizeNotesMapValue(next);
         }
 
+        mergeNotesMapsConcat(baseNotes, appendedNotes, joinLineIndex, joinCharOffset, appendedLineCount) {
+            const merged = {};
+
+            if (baseNotes && isPlainObject(baseNotes)) {
+                Object.keys(baseNotes).forEach((lineKey) => {
+                    merged[lineKey] = cloneLineNotes(baseNotes[lineKey]);
+                });
+            }
+
+            if (appendedNotes && isPlainObject(appendedNotes)) {
+                Object.keys(appendedNotes).forEach((lineKey) => {
+                    const srcLine = parseInt(lineKey, 10);
+                    if (srcLine === 0) {
+                        // 첫 줄은 이전 슬라이드 마지막 줄에 이어붙이기
+                        const targetKey = String(joinLineIndex);
+                        const existing = merged[targetKey] || [];
+                        const appended = cloneLineNotes(appendedNotes[lineKey]);
+                        // charIndex를 joinCharOffset만큼 shift
+                        const padded = new Array(Math.max(0, joinCharOffset - existing.length)).fill(null);
+                        merged[targetKey] = [...existing, ...padded, ...appended];
+                    } else {
+                        // 나머지 줄은 joinLineIndex 기준으로 shift (개행 하나 줄어듦)
+                        const shiftedKey = String(joinLineIndex + srcLine);
+                        merged[shiftedKey] = cloneLineNotes(appendedNotes[lineKey]);
+                    }
+                });
+            }
+
+            this.cleanupOrphanBeamGroupsInNotesMap(merged);
+            return this.normalizeNotesMapValue(merged);
+        }
+
         mergeNotesMaps(baseNotes, appendedNotes, lineOffset) {
             const merged = {};
 
@@ -1787,13 +1819,39 @@
             const previousEnglishLines = getStoredLines(slide.englishOwner[previousIndex] || "");
             const currentEnglishLines = getStoredLines(slide.english || "");
 
-            slide.koreanOwner[previousIndex] = joinStoredLines([...previousKoreanLines, ...currentKoreanLines]);
-            slide.englishOwner[previousIndex] = joinStoredLines([...previousEnglishLines, ...currentEnglishLines]);
-            slide.notesOwner[previousIndex] = this.mergeNotesMaps(
+            // 이전 슬라이드 마지막 줄에 현재 슬라이드 첫 줄을 이어붙이기
+            const mergedKorean = [...previousKoreanLines];
+            const mergedEnglish = [...previousEnglishLines];
+            if (currentKoreanLines.length > 0) {
+                if (mergedKorean.length > 0) {
+                    mergedKorean[mergedKorean.length - 1] += currentKoreanLines[0];
+                    mergedKorean.push(...currentKoreanLines.slice(1));
+                } else {
+                    mergedKorean.push(...currentKoreanLines);
+                }
+            }
+            if (currentEnglishLines.length > 0) {
+                if (mergedEnglish.length > 0) {
+                    mergedEnglish[mergedEnglish.length - 1] += currentEnglishLines[0];
+                    mergedEnglish.push(...currentEnglishLines.slice(1));
+                } else {
+                    mergedEnglish.push(...currentEnglishLines);
+                }
+            }
+
+            // notes 병합: 이전 마지막 줄 + 현재 첫 줄을 합치고, 나머지는 shift
+            const prevLastLineIndex = Math.max(0, previousKoreanLines.length - 1);
+            const prevLastLineCharCount = countNotationChars(previousKoreanLines[prevLastLineIndex] || "");
+            slide.notesOwner[previousIndex] = this.mergeNotesMapsConcat(
                 slide.notesOwner[previousIndex],
                 slide.notes,
-                previousKoreanLines.length
+                prevLastLineIndex,
+                prevLastLineCharCount,
+                currentKoreanLines.length
             );
+
+            slide.koreanOwner[previousIndex] = joinStoredLines(mergedKorean);
+            slide.englishOwner[previousIndex] = joinStoredLines(mergedEnglish);
 
             slide.koreanOwner.splice(slide.slideIndex, 1);
             slide.englishOwner.splice(slide.slideIndex, 1);
