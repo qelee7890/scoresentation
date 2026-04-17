@@ -111,30 +111,36 @@
                 <div class="editor-panel-title">사용법</div>
                 <div class="editor-help-grid">
                     <div class="editor-help-group">
-                        <h4>음표 입력·수정</h4>
+                        <h4>음표 입력</h4>
                         <ul class="editor-help">
-                            <li>호버로 회색 음표 미리보기 후 클릭하면 생성</li>
-                            <li>기존 음표 클릭: 박자 증가 · <kbd>Ctrl</kbd>+클릭: 박자 감소</li>
-                            <li>더블클릭으로 음표 삭제</li>
-                            <li>음표 위에서 높낮이를 바꿔 호버 후 클릭: 음정 변경</li>
-                            <li>기존 음표는 드래그해서 음높이 변경</li>
-                            <li>기존 음표 클릭: 인라인 메뉴 열기
-                                <ul>
-                                    <li><kbd>&lt;</kbd>/<kbd>&gt;</kbd>: 이 음표부터 줄 끝까지 한 칸 당기기/밀기 (앞 칸이 비어 있어야 당길 수 있음)</li>
-                                    <li><kbd>♩</kbd>: 박자 변경 · <kbd>•</kbd>: 점음표 토글</li>
-                                    <li><kbd>♯</kbd>/<kbd>♭</kbd>/<kbd>♮</kbd>: 임시표 토글 (조표와 중복되는 항목은 비활성화)</li>
-                                    <li><kbd>🗑</kbd>: 음표 삭제</li>
-                                </ul>
-                            </li>
+                            <li>빈 오선지 호버 → 회색 프리뷰, 클릭 → 음표 생성</li>
+                            <li>비선택 음표 드래그: 음높이 변경</li>
+                            <li>더블클릭: 음표 삭제</li>
+                        </ul>
+                    </div>
+
+                    <div class="editor-help-group">
+                        <h4>음표 선택·편집</h4>
+                        <ul class="editor-help">
+                            <li>음표 클릭/우클릭: 선택 + 인라인 메뉴</li>
+                            <li><kbd>Ctrl</kbd>/<kbd>Shift</kbd>+클릭: 다중 선택 추가/제거</li>
+                            <li>빈 오선지 드래그: 범위 내 음표 다중 선택</li>
+                            <li>선택된 음표 드래그: x축 위치 이동 / y축 음높이 일괄 변경 (메이저 축 방향만)</li>
+                            <li>인라인 메뉴: <kbd>♩</kbd> 길이 · <kbd>•</kbd> 점 · <kbd>♯♭♮</kbd> 임시표 · <kbd>⟂</kbd> 연결선 · <kbd>🗑</kbd> 삭제</li>
+                            <li><kbd>↑</kbd>/<kbd>↓</kbd>: 음높이 한 단계 변경</li>
+                            <li><kbd>←</kbd>/<kbd>→</kbd>: 한 칸 좌우 이동</li>
+                            <li><kbd>&lt;</kbd>/<kbd>&gt;</kbd>: 박자 한 단계 짧게/길게</li>
+                            <li><kbd>Delete</kbd>/<kbd>Backspace</kbd>: 선택 음표 삭제</li>
+                            <li><kbd>Esc</kbd>: 선택 해제 또는 드래그 취소</li>
                         </ul>
                     </div>
 
                     <div class="editor-help-group">
                         <h4>정합성 표시</h4>
                         <ul class="editor-help">
-                            <li>가사 글자에 매칭되는 음표가 없으면 글자가 <b style="color:#d8324c">빨간색</b>으로 강조됨</li>
-                            <li>가사 길이를 넘어선 음표(짝 없는 dangling 음표)는 줄 끝 오른쪽에 빨간색으로 표시됨</li>
-                            <li>가사 텍스트를 수정해도 dangling 음표는 보존됨 — <kbd>&lt;</kbd> 버튼으로 다시 가사 위치로 당기거나 <kbd>🗑</kbd>로 정리</li>
+                            <li>가사 글자에 매칭되는 음표가 없으면 <b style="color:#d8324c">빨간색</b> 강조</li>
+                            <li>가사 길이를 넘어선 음표(dangling)는 줄 끝 오른쪽에 빨간색 표시</li>
+                            <li>가사 수정 시 dangling 음표는 보존됨 — 드래그 또는 <kbd>←</kbd>로 이동하거나 <kbd>🗑</kbd>로 삭제</li>
                         </ul>
                     </div>
 
@@ -144,16 +150,6 @@
                             <li>음자리표 오른쪽 조표 영역: 호버 후 클릭으로 조표 추가</li>
                             <li>조표 영역 <kbd>Ctrl</kbd> 호버: 샵 미리보기</li>
                             <li>조표 영역 더블클릭: 마지막 조표 삭제</li>
-                        </ul>
-                    </div>
-
-                    <div class="editor-help-group">
-                        <h4>연결선 (빔)</h4>
-                        <ul class="editor-help">
-                            <li><kbd>Ctrl</kbd>/<kbd>Shift</kbd>+클릭: 같은 줄에 음표 추가 선택</li>
-                            <li>빈 오선지 드래그: 같은 줄의 음표를 박스로 선택</li>
-                            <li>선택 후 나타나는 인라인 메뉴에서 묶기/해제/취소</li>
-                            <li>연결선 선택은 한 줄씩만 유지됨</li>
                         </ul>
                     </div>
 

@@ -661,6 +661,13 @@
                     case "f":
                     case "F":
                         this.toggleFullscreen(); break;
+                    case "r":
+                    case "R":
+                        event.preventDefault(); this.repeatCurrentItem(); break;
+                    case "0":
+                    case "1": case "2": case "3": case "4": case "5":
+                    case "6": case "7": case "8": case "9":
+                        event.preventDefault(); this.jumpToVerse(event.key); break;
                     case "Escape":
                         if (document.fullscreenElement) document.exitFullscreen();
                         this.closeAllModals();
@@ -2204,6 +2211,7 @@
 
                         slides.push({
                             type: "verse",
+                            verseNum,
                             html: `
                                 <div class="slide">
                                     <div class="slide-content">
@@ -2234,6 +2242,8 @@
 
                             slides.push({
                                 type: "chorus",
+                                verseNum: "chorus",
+                                afterVerse: verseNum,
                                 html: `
                                     <div class="slide">
                                         <div class="slide-content">
@@ -2330,6 +2340,68 @@
         }
         prevSlide() {
             if (this.currentGlobalIndex > 0) this.showGlobalSlide(this.currentGlobalIndex - 1);
+        }
+
+        repeatCurrentItem() {
+            const cur = this.slideData && this.slideData[this.currentGlobalIndex];
+            if (!cur || !cur.itemId) return;
+            const startIdx = this.itemStartIndex[cur.itemId];
+            if (startIdx == null) return;
+
+            const startSlide = this.slideData[startIdx];
+            if (!startSlide) return;
+
+            // 찬송가/악보: 타이틀(소개) 다음인 2번째 슬라이드로 (1장이면 그대로)
+            if (startSlide.type === "title") {
+                const nextIdx = startIdx + 1;
+                if (nextIdx < this.slideData.length && this.slideData[nextIdx].itemId === cur.itemId) {
+                    this.showGlobalSlide(nextIdx);
+                }
+                return;
+            }
+
+            // 이미지: 첫장으로 (1장이면 그대로)
+            if (startSlide.type === "media") {
+                if (this.currentGlobalIndex !== startIdx) {
+                    this.showGlobalSlide(startIdx);
+                }
+                return;
+            }
+        }
+
+        jumpToVerse(key) {
+            const cur = this.slideData && this.slideData[this.currentGlobalIndex];
+            if (!cur || !cur.itemId) return;
+            const startIdx = this.itemStartIndex[cur.itemId];
+            if (startIdx == null) return;
+
+            const firstSlide = this.slideData[startIdx];
+            if (!firstSlide) return;
+
+            // 이미지 슬라이드: 숫자키로 N번째 장 이동
+            if (firstSlide.type === "media") {
+                const n = parseInt(key, 10);
+                if (n < 1) return;
+                const targetIdx = startIdx + n - 1;
+                if (targetIdx < this.slideData.length && this.slideData[targetIdx].itemId === cur.itemId) {
+                    this.showGlobalSlide(targetIdx);
+                }
+                return;
+            }
+
+            // 찬송가/악보: 절 번호 또는 후렴(0)으로 이동
+            if (firstSlide.type !== "title") return;
+
+            const targetVerse = key === "0" ? "chorus" : key;
+
+            for (let i = startIdx + 1; i < this.slideData.length; i++) {
+                const s = this.slideData[i];
+                if (s.itemId !== cur.itemId) break;
+                if (s.verseNum === targetVerse) {
+                    this.showGlobalSlide(i);
+                    return;
+                }
+            }
         }
 
         updateActiveCard() {

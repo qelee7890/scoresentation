@@ -621,7 +621,7 @@ body.editor-body {
 }
 
 .editor-line .notation-container {
-    min-height: 92px;
+    min-height: 100px;
     position: relative;
     align-items: flex-end;
     justify-content: flex-start;
@@ -675,18 +675,39 @@ body.editor-body {
 
 .editor-beam-menu button {
     font: inherit;
+    font-size: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
     border: 1px solid var(--editor-border);
-    border-radius: 999px;
+    border-radius: 50%;
     background: #fff;
     color: var(--editor-text);
-    padding: 7px 10px;
+    padding: 0;
     cursor: pointer;
     white-space: nowrap;
+}
+
+.editor-beam-menu button.is-active {
+    background: var(--editor-accent);
+    color: #fff;
+    border-color: var(--editor-accent);
 }
 
 .editor-beam-menu button:disabled {
     opacity: 0.45;
     cursor: not-allowed;
+}
+
+.editor-beam-menu .editor-note-duration-list button,
+.editor-beam-menu button[data-beam-menu-action="back"] {
+    width: auto;
+    height: auto;
+    border-radius: 999px;
+    padding: 7px 10px;
+    font-size: inherit;
 }
 
 .editor-note-menu {

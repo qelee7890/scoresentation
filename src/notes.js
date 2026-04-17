@@ -30,7 +30,7 @@ class NotesEngine {
 
         // SVG 레이아웃 상수
         this.staffTopMargin = 30;        // 오선지 상단 여백
-        this.svgExtraHeight = 40;        // SVG 추가 높이 (꼬리 등)
+        this.svgExtraHeight = 55;        // SVG 추가 높이 (꼬리 + 하단 덧줄 여유)
 
         // 꼬리(flag) 위치 조정 상수
         this.flagOffsetX = -0.55;        // 꼬리 X 오프셋
@@ -84,6 +84,7 @@ class NotesEngine {
         // (calculatePitch는 이 오프셋을 역으로 보정한다)
         // 시각 좌표계: F5(top line)=0, D5=1, B4=2, G4=3, E4(bottom line)=4
         this.pitchMap = {
+            'A3': 5.5,  // 아래 둘째 덧줄 아래
             'B3': 5,    // 아래 첫째 덧줄
             'C4': 4.5,
             'D4': 4,    // 아래줄

@@ -5,6 +5,7 @@
     const CLICK_DELAY_MS = 220;
     const CHORUS_MARKER_PATTERN = /<\s*후렴\s*>/gi;
     const NOTE_LENGTH_OPTIONS = [
+        { label: "16분", value: "16" },
         { label: "8분", value: "8" },
         { label: "4분", value: "q" },
         { label: "2분", value: "h" },
@@ -260,6 +261,11 @@
         return text ? splitLines(text) : [];
     }
 
+    function stripTrailingEmptyLines(text) {
+        if (!text) return text;
+        return text.replace(/(<br\s*\/?>[\s]*)+$/gi, "");
+    }
+
     function hasChorusMarker(text) {
         return /<\s*후렴\s*>/i.test(String(text || ""));
     }
@@ -400,6 +406,8 @@
             this.selectedBeamNotes = [];
             this.selectedNoteTarget = null;
             this.noteMenuMode = "main";
+            this.beamMenuMode = "main";
+            this.moveDragState = null;
             this.undoStack = [];
             this.redoStack = [];
             this.pendingTextHistory = null;
@@ -570,24 +578,72 @@
 
                 if (event.key === "Escape") {
                     event.preventDefault();
-                    if (this.noteMenuMode === "duration") {
-                        this.noteMenuMode = "main";
+                    // 이동 드래그 취소
+                    if (this.moveDragState) {
+                        const li = this.moveDragState.lineIndex;
+                        // pitch 원래대로 복원
+                        if (this.moveDragState.originalPitches) {
+                            const pitchNames = Object.keys(this.notesEngine.pitchMap);
+                            for (const s of this.selectedBeamNotes) {
+                                const note = this.getNoteAt(s.lineIndex, s.charIndex);
+                                const orig = this.moveDragState.originalPitches[`${s.lineIndex}:${s.charIndex}`];
+                                if (note && orig) note.pitch = orig;
+                            }
+                        }
+                        this.moveDragState = null;
+                        this.renderLine(li);
+                        return;
+                    }
+                    // 길이 변경 서브메뉴 닫기
+                    if (this.beamMenuMode === "duration") {
+                        this.beamMenuMode = "main";
                         this.updateToolbarState();
                         return;
                     }
-
-                    if (this.selectedNoteTarget) {
+                    // 선택 해제
+                    if (this.selectedBeamNotes.length > 0) {
                         this.clearSelectedNoteTarget();
                         return;
                     }
-
-                    this.clearBeamSelection({ statusMessage: "연결선 선택을 해제했습니다." });
                     return;
                 }
 
                 if (this.selectedBeamNotes.length > 0 && (event.key === "Delete" || event.key === "Backspace")) {
                     event.preventDefault();
-                    this.clearSelectedBeamGroup();
+                    this.applyBeamBulkDelete();
+                    return;
+                }
+
+                if (this.selectedBeamNotes.length > 0) {
+                    const pitchNames = Object.keys(this.notesEngine.pitchMap);
+                    switch (event.key) {
+                        case "ArrowUp":
+                            event.preventDefault();
+                            this.nudgeSelectedPitch(1, pitchNames);
+                            return;
+                        case "ArrowDown":
+                            event.preventDefault();
+                            this.nudgeSelectedPitch(-1, pitchNames);
+                            return;
+                        case "ArrowLeft":
+                            event.preventDefault();
+                            this.nudgeSelectedX(-1);
+                            return;
+                        case "ArrowRight":
+                            event.preventDefault();
+                            this.nudgeSelectedX(1);
+                            return;
+                        case "<":
+                        case ",":
+                            event.preventDefault();
+                            this.nudgeSelectedDuration(-1);
+                            return;
+                        case ">":
+                        case ".":
+                            event.preventDefault();
+                            this.nudgeSelectedDuration(1);
+                            return;
+                    }
                 }
             });
         }
@@ -831,6 +887,7 @@
             const hymn = this.data.hymn;
             const songTitle = hymn.title || getSongDisplayTitle(hymn);
             this.normalizeChorusSlides();
+            this.stripTrailingBreaks(hymn);
             const slides = [];
             const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
 
@@ -950,7 +1007,9 @@
             this.selectedBeamNotes = [];
             this.selectedNoteTarget = null;
             this.noteMenuMode = "main";
+            this.beamMenuMode = "main";
             this.beamDragState = null;
+            this.moveDragState = null;
             this.renderSlideList();
             this.renderCurrentSlide();
             this.scheduleLayoutRefresh();
@@ -1038,6 +1097,39 @@
             if (!Array.isArray(section.notes)) {
                 section.notes = [];
             }
+        }
+
+        stripTrailingBreaks(hymn) {
+            if (!hymn) return;
+            const cleanSection = (sec) => {
+                if (!sec) return;
+                const lists = ["korean", "english"];
+                for (const key of lists) {
+                    if (!Array.isArray(sec[key])) continue;
+                    for (let i = 0; i < sec[key].length; i++) {
+                        const before = sec[key][i];
+                        if (!before) continue;
+                        const after = stripTrailingEmptyLines(before);
+                        if (after !== before) {
+                            sec[key][i] = after;
+                            // notes에서 빈 마지막 줄 키도 제거
+                            if (Array.isArray(sec.notes) && sec.notes[i] && typeof sec.notes[i] === "object") {
+                                const linesBefore = splitLines(before).length;
+                                const linesAfter = splitLines(after).length;
+                                for (let li = linesAfter; li < linesBefore; li++) {
+                                    delete sec.notes[i][String(li)];
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            if (hymn.verses) {
+                for (const vk of Object.keys(hymn.verses)) {
+                    cleanSection(hymn.verses[vk]);
+                }
+            }
+            cleanSection(hymn.chorus);
         }
 
         normalizeChorusSlides() {
@@ -1933,9 +2025,7 @@
             }
 
             this.renderBeamSelectionOverlay(notationEl, slide, metrics, lineIndex);
-            this.renderSelectedNoteOverlay(notationEl, slide, metrics, lineIndex);
             this.renderBeamContextMenu();
-            this.renderNoteContextMenu();
         }
 
         measureEditorCharPositions(textElement) {
@@ -2191,15 +2281,43 @@
                 return;
             }
 
+            const moveDelta = (this.moveDragState && this.moveDragState.lineIndex === lineIndex) ? this.moveDragState.delta : 0;
+
             const selectedMarkup = selectedNotes.map((item) => {
                 const position = this.getNoteVisualPosition(metrics, slide, item.charIndex, item.note.pitch, lineIndex);
-                return `
+                let markup = `
                     <circle cx="${position.x}" cy="${position.y}"
                             r="${this.notesEngine.lineSpacing * 0.78}"
                             fill="none"
                             stroke="#8c4b2f"
                             stroke-width="2"/>
                 `;
+                // 이동 중: 원래 위치에 회색 반투명, 대상 위치에 회색 프리뷰
+                if (moveDelta !== 0) {
+                    const targetCharIndex = item.charIndex + moveDelta;
+                    const keyInfo = this.notesEngine.parseKeySignature(slide.key);
+                    const totalMargin = this.notesEngine.clefMargin + this.notesEngine.getKeySignatureWidth(keyInfo);
+                    let previewX;
+                    if (targetCharIndex < metrics.positions.length) {
+                        previewX = metrics.positions[targetCharIndex] + totalMargin;
+                    } else {
+                        // dangling 영역: 평균 간격으로 확장
+                        const lastX = metrics.positions.length > 0 ? metrics.positions[metrics.positions.length - 1] + totalMargin : totalMargin;
+                        const avgGap = metrics.positions.length >= 2
+                            ? (metrics.positions[metrics.positions.length - 1] - metrics.positions[0]) / (metrics.positions.length - 1)
+                            : this.notesEngine.lineSpacing * 2.5;
+                        previewX = lastX + avgGap * (targetCharIndex - metrics.positions.length + 1);
+                    }
+                    const pitchPos = this.notesEngine.pitchMap[item.note.pitch] ?? 3;
+                    const previewY = this.notesEngine.staffTopMargin + pitchPos * this.notesEngine.lineSpacing;
+                    const glyph = this.notesEngine.smufl.noteheadBlack;
+                    markup += `
+                        <text x="${previewX}" y="${previewY}"
+                              font-family="Bravura, 'Bravura Text'" font-size="${this.notesEngine.fontSize}"
+                              fill="#999" text-anchor="middle" dominant-baseline="middle">${glyph}</text>
+                    `;
+                }
+                return markup;
             }).join("");
 
             svgEl.innerHTML += selectedMarkup;
@@ -2267,7 +2385,6 @@
             this.dom.prevSlide.disabled = this.slides.length === 0 || this.currentSlideIndex === 0;
             this.dom.nextSlide.disabled = this.slides.length === 0 || this.currentSlideIndex === this.slides.length - 1;
             this.renderBeamContextMenu();
-            this.renderNoteContextMenu();
         }
 
         createHistorySnapshot() {
@@ -2317,6 +2434,9 @@
             this.selectedBeamNotes = [];
             this.selectedNoteTarget = null;
             this.noteMenuMode = "main";
+            this.beamMenuMode = "main";
+            this.moveDragState = null;
+            this.beamDragState = null;
             this.pendingTextHistory = null;
             this.updateHeader();
 
@@ -2656,7 +2776,7 @@
                 return;
             }
 
-            if (this.dragState) {
+            if (this.dragState || this.moveDragState || this.beamDragState) {
                 return;
             }
 
@@ -2702,6 +2822,29 @@
 
             if (target.existingNote) {
                 if (event.ctrlKey || event.metaKey || event.shiftKey) {
+                    return;
+                }
+
+                // 이미 선택된 음표를 드래그하면 이동 (x=위치, y=음높이)
+                if (this.hasSelectedBeamNote(target.lineIndex, target.charIndex)) {
+                    // 각 음표의 원래 pitch를 기록
+                    const originalPitches = {};
+                    for (const s of this.selectedBeamNotes) {
+                        const n = this.getNoteAt(s.lineIndex, s.charIndex);
+                        if (n) originalPitches[`${s.lineIndex}:${s.charIndex}`] = n.pitch;
+                    }
+                    this.moveDragState = {
+                        lineIndex: target.lineIndex,
+                        anchorCharIndex: target.charIndex,
+                        startX: event.clientX,
+                        startY: event.clientY,
+                        delta: 0,
+                        pitchDelta: 0,
+                        originalPitches,
+                        moved: false,
+                        snapshot: this.createHistorySnapshot()
+                    };
+                    event.preventDefault();
                     return;
                 }
 
@@ -2778,6 +2921,7 @@
             const beamMenuButton = event.target.closest("[data-beam-menu-action]");
             if (beamMenuButton) {
                 event.preventDefault();
+                if (beamMenuButton.disabled) return;
                 this.handleBeamMenuAction(beamMenuButton.dataset.beamMenuAction);
                 return;
             }
@@ -2795,7 +2939,12 @@
             const noteDurationButton = event.target.closest("[data-note-duration]");
             if (noteDurationButton) {
                 event.preventDefault();
-                this.applySelectedNoteDuration(noteDurationButton.dataset.noteDuration);
+                // beam 메뉴 안의 길이 변경인지 확인
+                if (noteDurationButton.closest("[data-beam-menu]")) {
+                    this.applyBeamBulkDuration(noteDurationButton.dataset.noteDuration);
+                } else {
+                    this.applySelectedNoteDuration(noteDurationButton.dataset.noteDuration);
+                }
                 return;
             }
 
@@ -2963,6 +3112,11 @@
                 return;
             }
 
+            if (this.moveDragState) {
+                this.updateMoveDrag(event);
+                return;
+            }
+
             if (!this.dragState) {
                 return;
             }
@@ -2976,7 +3130,7 @@
             const notationEl = lineEl.querySelector(".notation-container");
             const svgEl = notationEl.querySelector("svg");
             const rect = svgEl ? svgEl.getBoundingClientRect() : notationEl.getBoundingClientRect();
-            const localY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+            const localY = event.clientY - rect.top;
             const nextPitch = this.calculatePitch(localY);
 
             if (nextPitch === this.dragState.lastPitch) {
@@ -2997,6 +3151,11 @@
         handleDocumentMouseUp() {
             if (this.beamDragState) {
                 this.finishBeamDragSelection();
+                return;
+            }
+
+            if (this.moveDragState) {
+                this.finishMoveDrag();
                 return;
             }
 
@@ -3044,7 +3203,7 @@
             const svgRect = svgEl ? svgEl.getBoundingClientRect() : notationEl.getBoundingClientRect();
             const localX = event.clientX - textRect.left;
             const localSvgX = event.clientX - svgRect.left;
-            const localY = Math.max(0, Math.min(svgRect.height, event.clientY - svgRect.top));
+            const localY = event.clientY - svgRect.top;
 
             if (!this.isDotMode && this.isKeyArea(localSvgX)) {
                 return {
@@ -3135,21 +3294,26 @@
         }
 
         getSelectedNote() {
+            // 통합: selectedBeamNotes에서 1개일 때 단일 선택으로 취급
+            if (this.selectedBeamNotes.length === 1) {
+                const item = this.selectedBeamNotes[0];
+                const note = this.getNoteAt(item.lineIndex, item.charIndex);
+                if (!hasNoteData(note)) {
+                    this.selectedBeamNotes = [];
+                    return null;
+                }
+                return { lineIndex: item.lineIndex, charIndex: item.charIndex, note };
+            }
+            // 하위 호환: 기존 selectedNoteTarget
             if (!this.selectedNoteTarget) {
                 return null;
             }
-
             const note = this.getNoteAt(this.selectedNoteTarget.lineIndex, this.selectedNoteTarget.charIndex);
             if (!hasNoteData(note)) {
                 this.selectedNoteTarget = null;
-                this.noteMenuMode = "main";
                 return null;
             }
-
-            return {
-                ...this.selectedNoteTarget,
-                note
-            };
+            return { ...this.selectedNoteTarget, note };
         }
 
         setSelectedNoteTarget(target) {
@@ -3157,34 +3321,38 @@
                 return;
             }
 
-            const previousLine = this.selectedNoteTarget ? this.selectedNoteTarget.lineIndex : null;
-            this.selectedNoteTarget = {
+            const previousLines = this.selectedBeamNotes.map((item) => item.lineIndex);
+            this.selectedBeamNotes = [{
                 lineIndex: target.lineIndex,
                 charIndex: target.charIndex
-            };
-            this.noteMenuMode = "main";
-            this.clearBeamSelection();
-            if (previousLine !== null && previousLine !== target.lineIndex) {
-                this.renderLine(previousLine);
+            }];
+            this.beamMenuMode = "main";
+            this.selectedNoteTarget = null;
+            for (const li of previousLines) {
+                if (li !== target.lineIndex) this.renderLine(li);
             }
             this.renderLine(target.lineIndex);
             this.updateToolbarState();
         }
 
         clearSelectedNoteTarget(renderLine = true) {
-            if (!this.selectedNoteTarget) {
-                this.noteMenuMode = "main";
-                this.renderNoteContextMenu();
+            if (this.selectedBeamNotes.length === 0 && !this.selectedNoteTarget) {
+                this.beamMenuMode = "main";
+                this.renderBeamContextMenu();
                 return false;
             }
 
-            const previousLine = this.selectedNoteTarget.lineIndex;
+            const previousLines = [
+                ...this.selectedBeamNotes.map((item) => item.lineIndex),
+                ...(this.selectedNoteTarget ? [this.selectedNoteTarget.lineIndex] : [])
+            ];
+            this.selectedBeamNotes = [];
             this.selectedNoteTarget = null;
-            this.noteMenuMode = "main";
+            this.beamMenuMode = "main";
             if (renderLine) {
-                this.renderLine(previousLine);
+                for (const li of [...new Set(previousLines)]) this.renderLine(li);
             } else {
-                this.renderNoteContextMenu();
+                this.renderBeamContextMenu();
             }
             this.updateToolbarState();
             return true;
@@ -3214,7 +3382,7 @@
         normalizeBeamSelection() {
             this.selectedBeamNotes = this.selectedBeamNotes.filter((item) => {
                 const note = this.getNoteAt(item.lineIndex, item.charIndex);
-                return hasNoteData(note) && isBeamableDuration(note.duration);
+                return hasNoteData(note);
             });
         }
 
@@ -3246,10 +3414,18 @@
             }
 
             if (selectionItems.length >= 2) {
-                const baseDurations = new Set(selectionItems.map((item) => {
+                const baseDurations = new Set();
+                for (const item of selectionItems) {
                     const note = this.getNoteAt(item.lineIndex, item.charIndex);
-                    return getBaseDuration(note ? note.duration : "");
-                }));
+                    const dur = getBaseDuration(note ? note.duration : "");
+                    if (!isBeamableDuration(dur)) {
+                        return {
+                            ok: false,
+                            reason: "연결선은 8분음표와 16분음표에서만 적용할 수 있습니다."
+                        };
+                    }
+                    baseDurations.add(dur);
+                }
 
                 if (baseDurations.size > 1) {
                     return {
@@ -3317,7 +3493,12 @@
 
         canClearBeamSelection() {
             this.normalizeBeamSelection();
-            return this.selectedBeamNotes.length > 0;
+            if (this.selectedBeamNotes.length < 2) return false;
+            // 선택된 음표 중 beamGroup이 있는 음표가 하나라도 있어야 해제 가능
+            return this.selectedBeamNotes.some((item) => {
+                const note = this.getNoteAt(item.lineIndex, item.charIndex);
+                return note && note.beamGroup != null;
+            });
         }
 
         beginBeamDragSelection(event) {
@@ -3329,7 +3510,8 @@
 
             this.clearSelectedNoteTarget(false);
 
-            const rect = notationEl.getBoundingClientRect();
+            const svgEl = notationEl.querySelector("svg");
+            const rect = svgEl ? svgEl.getBoundingClientRect() : notationEl.getBoundingClientRect();
             const lineRect = lineEl.getBoundingClientRect();
             const startX = event.clientX - rect.left;
             const startY = event.clientY - rect.top;
@@ -3379,9 +3561,10 @@
                 return;
             }
 
-            const rect = state.notationEl.getBoundingClientRect();
-            state.currentX = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-            state.currentY = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+            const svgEl = state.notationEl.querySelector("svg");
+            const rect = svgEl ? svgEl.getBoundingClientRect() : state.notationEl.getBoundingClientRect();
+            state.currentX = Math.max(0, event.clientX - rect.left);
+            state.currentY = event.clientY - rect.top;
 
             const left = Math.min(state.startX, state.currentX);
             const top = Math.min(state.startY, state.currentY);
@@ -3424,7 +3607,7 @@
             const nextSelection = [];
 
             lineNotes.forEach((note, charIndex) => {
-                if (!hasNoteData(note) || !isBeamableDuration(note.duration)) {
+                if (!hasNoteData(note)) {
                     return;
                 }
 
@@ -3451,15 +3634,10 @@
                 }
             });
 
-            const validation = this.validateBeamSelectionItems(candidateSelection);
-            if (!validation.ok) {
-                if (!state.appendMode) {
-                    this.selectedBeamNotes = [];
-                }
+            if (candidateSelection.length === 0) {
                 this.renderLine(state.lineIndex);
                 this.updateToolbarState();
                 this.suppressClickUntil = Date.now() + 250;
-                this.setStatus(validation.reason, "warning");
                 return;
             }
 
@@ -3468,7 +3646,7 @@
             this.renderLine(state.lineIndex);
             this.updateToolbarState();
             this.suppressClickUntil = Date.now() + 250;
-            this.setStatus(nextSelection.length > 0 ? "드래그 박스로 연결선 후보 음표를 선택했습니다." : "드래그 박스 안에 선택 가능한 연결선 음표가 없었습니다.", nextSelection.length > 0 ? null : "warning");
+            this.setStatus(`${nextSelection.length}개 음표를 선택했습니다.`);
         }
 
         findNearestCharIndex(positions, localX) {
@@ -3522,8 +3700,12 @@
                     pitch: target.pitch,
                     duration: target.duration
                 };
-            } else {
+            } else if (target.existingNote) {
+                // notehead 위를 직접 클릭한 경우에만 pitch 변경
                 existing.pitch = target.pitch;
+            } else {
+                // 음표가 있는 charIndex의 빈 공간 클릭 — 무시
+                return;
             }
 
             this.cleanupOrphanBeamGroups(slide);
@@ -3565,8 +3747,7 @@
         }
 
         toggleBeamSelection(target, appendMode = false) {
-            if (!this.isBeamTargetEligible(target)) {
-                this.setStatus("연결선은 기존 8분음표나 16분음표에서만 선택할 수 있습니다.", "warning");
+            if (!target || !target.existingNote) {
                 return;
             }
 
@@ -3574,7 +3755,7 @@
                 const selectedLineIndex = this.getSelectedBeamLineIndex();
                 if (selectedLineIndex !== null && selectedLineIndex !== target.lineIndex) {
                     this.clearBeamSelection({
-                        statusMessage: `${target.lineIndex + 1}번째 줄로 연결선 선택 대상을 바꿨습니다. 연결선은 한 줄씩만 편집합니다.`
+                        statusMessage: `${target.lineIndex + 1}번째 줄로 선택 대상을 바꿨습니다.`
                     });
                 } else if (!appendMode && !this.hasSelectedBeamNote(target.lineIndex, target.charIndex)) {
                     this.clearBeamSelection();
@@ -3589,7 +3770,7 @@
                 this.selectedBeamNotes.splice(existingIndex, 1);
                 this.renderLine(target.lineIndex);
                 this.updateToolbarState();
-                this.setStatus("연결선 선택에서 음표를 제거했습니다.");
+                this.setStatus("선택에서 음표를 제거했습니다.");
                 return;
             }
 
@@ -3597,24 +3778,15 @@
                 lineIndex: target.lineIndex,
                 charIndex: target.charIndex
             });
-            const validation = this.validateBeamSelectionItems(this.selectedBeamNotes);
-            if (!validation.ok) {
-                this.selectedBeamNotes = this.selectedBeamNotes.filter((item) => !(
-                    item.lineIndex === target.lineIndex && item.charIndex === target.charIndex
-                ));
-                this.renderLine(target.lineIndex);
-                this.updateToolbarState();
-                this.setStatus(validation.reason, "warning");
-                return;
-            }
             this.selectedBeamNotes.sort((a, b) => a.charIndex - b.charIndex);
             this.renderLine(target.lineIndex);
             this.updateToolbarState();
-            this.setStatus("연결선 적용 후보에 음표를 추가했습니다.");
+            this.setStatus("음표를 선택에 추가했습니다.");
         }
 
         clearBeamSelection(options = {}) {
             const { statusMessage = null } = options;
+            this.beamMenuMode = "main";
             this.normalizeBeamSelection();
             if (this.selectedBeamNotes.length === 0) {
                 this.renderBeamContextMenu();
@@ -3790,13 +3962,12 @@
         }
 
         renderNoteContextMenu() {
+            // 통합 메뉴(renderBeamContextMenu)로 대체됨 — 기존 메뉴는 항상 숨김
             const menuEl = this.getNoteMenuElement();
             if (!menuEl) {
                 return;
             }
-
-            const selectedNote = this.getSelectedNote();
-            if (!this.isEditMode || !selectedNote) {
+            {
                 menuEl.hidden = true;
                 menuEl.innerHTML = "";
                 return;
@@ -4108,11 +4279,59 @@
             menuEl.hidden = false;
             menuEl.style.left = `${notationRect.left - cardRect.left + centerX}px`;
             menuEl.style.top = `${notationRect.top - cardRect.top - 12}px`;
+
+            if (this.beamMenuMode === "duration") {
+                const durations = selectedNotes.map((item) => getBaseDuration((item.note || {}).duration || "q"));
+                const allSame = durations.every((d) => d === durations[0]);
+                const currentDur = allSame ? durations[0] : null;
+                menuEl.innerHTML = `
+                    <span class="editor-note-menu-label">일괄 길이 변경</span>
+                    <div class="editor-note-duration-list">
+                        ${NOTE_LENGTH_OPTIONS.map((item) => `
+                            <button type="button" data-note-duration="${item.value}" class="${item.value === currentDur ? "is-current" : ""}">
+                                ${item.label}
+                            </button>
+                        `).join("")}
+                    </div>
+                    <button type="button" data-beam-menu-action="back">닫기</button>
+                `;
+                return;
+            }
+
+            const slide = this.getCurrentSlide();
+            const notes = selectedNotes.map((item) => item.note).filter(Boolean);
+            const allDotted = notes.length > 0 && notes.every((n) => (n.duration || "").endsWith("."));
+            const allSharp = notes.length > 0 && notes.every((n) => n.accidental === "sharp");
+            const allFlat = notes.length > 0 && notes.every((n) => n.accidental === "flat");
+            const allNatural = notes.length > 0 && notes.every((n) => n.accidental === "natural");
+
+            // 임시표 비활성화: 모든 선택 음표가 조표와 중복이고, 하나도 해당 임시표가 적용되어 있지 않으면 비활성화
+            let sharpDisabled = true, flatDisabled = true, naturalDisabled = true;
+            for (const item of selectedNotes) {
+                if (!item.note) continue;
+                const keyAcc = this.getKeyAccidentalForPitch(item.note.pitch, slide ? slide.key : null);
+                const lineNotes = (slide && slide.notes && slide.notes[item.lineIndex]) || [];
+                const hasPrior = this.hasPriorNaturalOnSamePitch(lineNotes, item.charIndex, item.note.pitch);
+                if (keyAcc !== "sharp" || hasPrior || item.note.accidental === "sharp") sharpDisabled = false;
+                if (keyAcc !== "flat" || hasPrior || item.note.accidental === "flat") flatDisabled = false;
+                if (keyAcc !== null || hasPrior || item.note.accidental === "natural") naturalDisabled = false;
+            }
+
+            const canApply = notes.length >= 2 && this.canApplyBeamSelection();
+            const canClear = notes.length >= 2 && this.canClearBeamSelection();
+            const beamDisabled = !canApply && !canClear;
+            // 연결선 상태: 전부 같은 beamGroup이면 "해제", 아니면 "적용"
+            const beamActive = canClear && notes.length > 1 && notes.every((n) => n.beamGroup != null && n.beamGroup === notes[0].beamGroup);
+            const dis = (cond) => cond ? "disabled" : "";
+
             menuEl.innerHTML = `
-                <span class="editor-beam-menu-count">${selectedNotes.length}개 선택</span>
-                <button type="button" data-beam-menu-action="apply" ${this.canApplyBeamSelection() ? "" : "disabled"}>연결선 적용</button>
-                <button type="button" data-beam-menu-action="clear" ${this.canClearBeamSelection() ? "" : "disabled"}>연결선 해제</button>
-                <button type="button" data-beam-menu-action="cancel">선택 취소</button>
+                <button type="button" data-beam-menu-action="length" title="일괄 길이 변경">♩</button>
+                <button type="button" data-beam-menu-action="dot" class="${allDotted ? "is-active" : ""}" title="일괄 점음표 토글">•</button>
+                <button type="button" data-beam-menu-action="sharp" ${dis(sharpDisabled)} class="${allSharp ? "is-active" : ""}" title="일괄 샵 토글">♯</button>
+                <button type="button" data-beam-menu-action="flat" ${dis(flatDisabled)} class="${allFlat ? "is-active" : ""}" title="일괄 플랫 토글">♭</button>
+                <button type="button" data-beam-menu-action="natural" ${dis(naturalDisabled)} class="${allNatural ? "is-active" : ""}" title="일괄 제자리표 토글">♮</button>
+                <button type="button" data-beam-menu-action="beam" ${dis(beamDisabled)} class="${beamActive ? "is-active" : ""}" title="${beamActive ? "연결선 해제" : "연결선 적용"}">⟂</button>
+                <button type="button" data-beam-menu-action="delete" title="일괄 삭제">🗑</button>
             `;
         }
 
@@ -4129,7 +4348,343 @@
 
             if (action === "cancel") {
                 this.clearBeamSelection({ statusMessage: "연결선 선택을 해제했습니다." });
+                return;
             }
+
+            if (action === "length") {
+                this.beamMenuMode = "duration";
+                this.updateToolbarState();
+                return;
+            }
+
+            if (action === "back") {
+                this.beamMenuMode = "main";
+                this.updateToolbarState();
+                return;
+            }
+
+            if (action === "beam") {
+                // 토글: 전부 같은 beamGroup이면 해제, 아니면 적용
+                const canClear = this.canClearBeamSelection();
+                const selectedNotes = this.getSelectedBeamNotesForLine(this.getSelectedBeamLineIndex());
+                const notes = selectedNotes.map((item) => item.note).filter(Boolean);
+                const allSameGroup = canClear && notes.length > 1 && notes.every((n) => n.beamGroup != null && n.beamGroup === notes[0].beamGroup);
+                if (allSameGroup) {
+                    this.clearSelectedBeamGroup();
+                } else if (this.canApplyBeamSelection()) {
+                    this.applySelectedBeamGroup();
+                }
+                return;
+            }
+
+            if (action === "dot") {
+                this.applyBeamBulkDot();
+                return;
+            }
+
+            if (action === "sharp" || action === "flat" || action === "natural") {
+                this.applyBeamBulkAccidental(action);
+                return;
+            }
+
+            if (action === "delete") {
+                this.applyBeamBulkDelete();
+                return;
+            }
+        }
+
+        // ── 일괄 적용 메서드 (다중 선택) ──
+
+        _getBeamSelectedNotes() {
+            const lineIndex = this.getSelectedBeamLineIndex();
+            if (lineIndex === null) return [];
+            return this.getSelectedBeamNotesForLine(lineIndex);
+        }
+
+        _refreshAfterBeamBulk() {
+            const lineIndex = this.getSelectedBeamLineIndex();
+            const slide = this.getCurrentSlide();
+            if (slide) this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+            if (lineIndex !== null) this.renderLine(lineIndex);
+            this.updateToolbarState();
+            this.renderExportJson();
+        }
+
+        applyBeamBulkDuration(nextBaseDuration) {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            this.recordHistory();
+            for (const item of items) {
+                const wasDotted = (item.note.duration || "").endsWith(".");
+                item.note.duration = wasDotted ? `${nextBaseDuration}.` : nextBaseDuration;
+                this.normalizeNoteBeamState(item.note);
+            }
+            this.beamMenuMode = "main";
+            this._refreshAfterBeamBulk();
+            this.setStatus(`${items.length}개 음표 길이를 변경했습니다.`);
+        }
+
+        applyBeamBulkDot() {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            const allDotted = items.every((item) => (item.note.duration || "").endsWith("."));
+            this.recordHistory();
+            for (const item of items) {
+                item.note.duration = this.toggleDottedDuration(item.note.duration);
+            }
+            this._refreshAfterBeamBulk();
+            this.setStatus(allDotted ? `${items.length}개 점음표를 제거했습니다.` : `${items.length}개 점음표를 추가했습니다.`);
+        }
+
+        applyBeamBulkAccidental(kind) {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            const allHave = items.every((item) => item.note.accidental === kind);
+            this.recordHistory();
+            for (const item of items) {
+                if (allHave) {
+                    delete item.note.accidental;
+                } else {
+                    item.note.accidental = kind;
+                }
+            }
+            this._refreshAfterBeamBulk();
+            const labels = { sharp: "샵", flat: "플랫", natural: "제자리표" };
+            this.setStatus(allHave ? `${items.length}개 ${labels[kind]}을(를) 제거했습니다.` : `${items.length}개 ${labels[kind]}을(를) 추가했습니다.`);
+        }
+
+        applyBeamBulkDelete() {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            const slide = this.getCurrentSlide();
+            if (!slide) return;
+            this.recordHistory();
+            for (const item of items) {
+                if (slide.notes && slide.notes[item.lineIndex]) {
+                    slide.notes[item.lineIndex][item.charIndex] = null;
+                }
+            }
+            this.selectedBeamNotes = [];
+            this.beamMenuMode = "main";
+            this._refreshAfterBeamBulk();
+            this.setStatus(`${items.length}개 음표를 삭제했습니다.`);
+        }
+
+        // ── 키보드 nudge (방향키/< >) ──
+
+        nudgeSelectedPitch(direction, pitchNames) {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            // 범위 검사
+            for (const item of items) {
+                const idx = pitchNames.indexOf(item.note.pitch);
+                if (idx < 0 || idx + direction < 0 || idx + direction >= pitchNames.length) return;
+            }
+            this.recordHistory();
+            for (const item of items) {
+                const idx = pitchNames.indexOf(item.note.pitch);
+                item.note.pitch = pitchNames[idx + direction];
+            }
+            this._refreshAfterBeamBulk();
+        }
+
+        nudgeSelectedX(direction) {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            const slide = this.getCurrentSlide();
+            const lineIndex = items[0].lineIndex;
+            const lineNotes = (slide && slide.notes && slide.notes[lineIndex]) || [];
+            const selectedSet = new Set(items.map((i) => i.charIndex));
+
+            // 충돌·범위 검사
+            const sorted = [...items].sort((a, b) => direction > 0 ? b.charIndex - a.charIndex : a.charIndex - b.charIndex);
+            for (const item of sorted) {
+                const target = item.charIndex + direction;
+                if (target < 0) return;
+                if (!selectedSet.has(target) && hasNoteData(lineNotes[target])) return;
+            }
+
+            this.recordHistory();
+            for (const item of sorted) {
+                const from = item.charIndex;
+                const to = from + direction;
+                lineNotes[to] = lineNotes[from];
+                lineNotes[from] = null;
+                // selectedBeamNotes의 charIndex 갱신
+                const sel = this.selectedBeamNotes.find((s) => s.lineIndex === lineIndex && s.charIndex === from);
+                if (sel) sel.charIndex = to;
+            }
+            this._refreshAfterBeamBulk();
+        }
+
+        nudgeSelectedDuration(direction) {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            // 모든 음표가 한 단계 이동 가능한지 검사
+            for (const item of items) {
+                const base = getBaseDuration(item.note.duration);
+                const idx = DURATION_ORDER.indexOf(base);
+                if (idx < 0 || idx + direction < 0 || idx + direction >= DURATION_ORDER.length) return;
+            }
+            this.recordHistory();
+            for (const item of items) {
+                const wasDotted = item.note.duration.endsWith(".");
+                const base = getBaseDuration(item.note.duration);
+                const idx = DURATION_ORDER.indexOf(base);
+                const newBase = DURATION_ORDER[idx + direction];
+                item.note.duration = wasDotted ? `${newBase}.` : newBase;
+                this.normalizeNoteBeamState(item.note);
+            }
+            this._refreshAfterBeamBulk();
+        }
+
+        // ── x방향 드래그 이동 ──
+
+        updateMoveDrag(event) {
+            const state = this.moveDragState;
+            if (!state) return;
+
+            const slide = this.getCurrentSlide();
+            const lineEl = this.dom.canvas.querySelector(`.editor-line[data-line-index="${state.lineIndex}"]`);
+            if (!slide || !lineEl || !lineEl._layout) return;
+
+            const positions = lineEl._layout.positions;
+            if (!positions || positions.length === 0) return;
+
+            const notationEl = lineEl.querySelector(".notation-container");
+            const svgEl = notationEl ? notationEl.querySelector("svg") : null;
+            const rect = svgEl ? svgEl.getBoundingClientRect() : (notationEl ? notationEl.getBoundingClientRect() : null);
+            if (!rect) return;
+
+            const selected = this.selectedBeamNotes
+                .filter((item) => item.lineIndex === state.lineIndex)
+                .sort((a, b) => a.charIndex - b.charIndex);
+            if (selected.length === 0) return;
+
+            // 메이저 축 결정: 시작점 대비 누적 이동량이 큰 쪽
+            const dx = Math.abs(event.clientX - state.startX);
+            const dy = Math.abs(event.clientY - state.startY);
+            const axis = (dx >= dy) ? "x" : "y";
+
+            let newDelta = state.delta;
+            let newPitchDelta = state.pitchDelta;
+            const pitchNames = Object.keys(this.notesEngine.pitchMap);
+
+            if (axis === "x") {
+                // x방향: charIndex delta 계산
+                const keyInfo = this.notesEngine.parseKeySignature(slide.key);
+                const totalMargin = this.notesEngine.clefMargin + this.notesEngine.getKeySignatureWidth(keyInfo);
+                const mouseLocalX = event.clientX - rect.left - totalMargin;
+                const anchorCharIndex = selected[0].charIndex;
+                // 가사 끝 너머(dangling 영역)도 허용: 마지막 글자 간격 기준으로 확장 인덱스 계산
+                let rawTargetIndex;
+                if (positions.length >= 2 && mouseLocalX > positions[positions.length - 1]) {
+                    const avgGap = (positions[positions.length - 1] - positions[0]) / (positions.length - 1);
+                    rawTargetIndex = Math.round((mouseLocalX - positions[0]) / avgGap);
+                } else {
+                    rawTargetIndex = this.findNearestCharIndex(positions, mouseLocalX);
+                }
+                let candidateDelta = rawTargetIndex - anchorCharIndex;
+
+                // x 충돌 검사
+                const selectedSet = new Set(selected.map((s) => s.charIndex));
+                const lineNotes = (slide.notes && slide.notes[state.lineIndex]) || [];
+                let xBlocked = false;
+                for (const s of selected) {
+                    const targetIdx = s.charIndex + candidateDelta;
+                    if (targetIdx < 0) { xBlocked = true; break; }
+                    if (!selectedSet.has(targetIdx) && hasNoteData(lineNotes[targetIdx])) { xBlocked = true; break; }
+                }
+                newDelta = xBlocked ? state.delta : candidateDelta;
+                // y 리셋 (x축 이동 중에는 pitch 변경 없음)
+                newPitchDelta = 0;
+            } else {
+                // y방향: 원래 pitch 기준 절대 delta 계산
+                const localY = event.clientY - rect.top;
+                const currentPitch = this.calculatePitch(localY);
+                const anchorKey = `${state.lineIndex}:${state.anchorCharIndex}`;
+                const anchorOriginalPitch = state.originalPitches[anchorKey];
+                const anchorOrigIdx = anchorOriginalPitch ? pitchNames.indexOf(anchorOriginalPitch) : -1;
+                const currentPitchIdx = pitchNames.indexOf(currentPitch);
+                let candidatePitchDelta = (anchorOrigIdx >= 0 && currentPitchIdx >= 0) ? currentPitchIdx - anchorOrigIdx : 0;
+
+                // 범위 검사: 원래 pitch 기준으로 확인
+                let pitchBlocked = false;
+                for (const s of selected) {
+                    const origPitch = state.originalPitches[`${s.lineIndex}:${s.charIndex}`];
+                    if (!origPitch) continue;
+                    const idx = pitchNames.indexOf(origPitch);
+                    if (idx < 0 || idx + candidatePitchDelta < 0 || idx + candidatePitchDelta >= pitchNames.length) { pitchBlocked = true; break; }
+                }
+                newPitchDelta = pitchBlocked ? state.pitchDelta : candidatePitchDelta;
+                // x 리셋 (y축 이동 중에는 위치 변경 없음)
+                newDelta = 0;
+            }
+
+            if (newDelta === state.delta && newPitchDelta === state.pitchDelta) return;
+
+            // y방향: 원래 pitch + delta로 절대 적용 (누적 오차 없음)
+            if (newPitchDelta !== state.pitchDelta) {
+                for (const s of selected) {
+                    const note = this.getNoteAt(s.lineIndex, s.charIndex);
+                    if (!note) continue;
+                    const origPitch = state.originalPitches[`${s.lineIndex}:${s.charIndex}`];
+                    if (!origPitch) continue;
+                    const origIdx = pitchNames.indexOf(origPitch);
+                    if (origIdx >= 0) note.pitch = pitchNames[origIdx + newPitchDelta];
+                }
+            }
+
+            state.delta = newDelta;
+            state.pitchDelta = newPitchDelta;
+            state.moved = state.moved || newDelta !== 0 || newPitchDelta !== 0;
+            this.renderLine(state.lineIndex);
+        }
+
+        finishMoveDrag() {
+            const state = this.moveDragState;
+            this.moveDragState = null;
+            if (!state) return;
+
+            const slide = this.getCurrentSlide();
+            const lineEl = this.dom.canvas.querySelector(`.editor-line[data-line-index="${state.lineIndex}"]`);
+            if (!slide || !lineEl || !lineEl._layout) return;
+
+            const hasMoved = state.delta !== 0 || state.pitchDelta !== 0;
+            if (!hasMoved) {
+                this.renderLine(state.lineIndex);
+                return;
+            }
+
+            // pitch는 이미 실시간 적용됨, x이동만 확정
+            if (state.delta !== 0) {
+                const lineNotes = (slide.notes && slide.notes[state.lineIndex]) || [];
+                const selected = this.selectedBeamNotes
+                    .filter((item) => item.lineIndex === state.lineIndex)
+                    .sort((a, b) => state.delta > 0 ? b.charIndex - a.charIndex : a.charIndex - b.charIndex);
+
+                this.recordHistory(state.snapshot);
+                for (const s of selected) {
+                    const from = s.charIndex;
+                    const to = from + state.delta;
+                    lineNotes[to] = lineNotes[from];
+                    lineNotes[from] = null;
+                    s.charIndex = to;
+                }
+            } else {
+                this.recordHistory(state.snapshot);
+            }
+
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+            this.renderLine(state.lineIndex);
+            this.updateToolbarState();
+            this.renderExportJson();
+            const parts = [];
+            if (state.delta !== 0) parts.push(`${Math.abs(state.delta)}칸 이동`);
+            if (state.pitchDelta !== 0) parts.push("음높이 변경");
+            this.setStatus(`${this.selectedBeamNotes.filter((i) => i.lineIndex === state.lineIndex).length}개 음표: ${parts.join(" + ")}`);
         }
 
         applyDotClickAction(target) {
