@@ -22,7 +22,7 @@ class NotesEngine {
         // Bravura 폰트 크기 (오선지 높이 기준)
         this.fontSize = this.staffHeight * 0.85;     // 음표 크기
         this.stemHeight = this.staffHeight * 0.7;
-        this.clefMargin = 40;                         // 음자리표 영역 여백
+        this.clefMargin = this.lineSpacing * 4;      // 음자리표 영역 여백 (스케일 비례)
 
         // 기둥(stem) 오프셋 상수
         this.stemStartOffsetDown = 5;    // stemDown일 때 기둥 시작 오프셋
@@ -75,9 +75,9 @@ class NotesEngine {
         this.flatPositions = [1.5, 0, 2, 0.5, 2.5, 1, 3];       // Bb(시), Eb(미), Ab(라), Db(레), Gb(솔), Cb(도), Fb(파)
         this.sharpPositions = [-0.5, 1, -1, 0.5, 2, 0, 1.5];       // F#(파)=F5, C#(도)=C5, G#(솔)=G5, D#(레)=D5, A#(라)=A4, E#(미)=E5, B#(시)=B4
 
-        // 조표 간격
-        this.keySignatureSpacing = 10; // 조표 간 간격
-        this.keyToFirstNoteGap = 14;   // 조표와 첫 음표 사이 여백
+        // 조표 간격 (스케일 비례)
+        this.keySignatureSpacing = this.lineSpacing;        // 조표 간 간격 (기본 10)
+        this.keyToFirstNoteGap = this.lineSpacing * 1.4;    // 조표와 첫 음표 사이 (기본 14)
 
         // 음높이 -> Y 위치 매핑 (Bravura 글리프 앵커 기준 렌더링 좌표)
         // 시각적 notehead 중심은 여기 값 + 0.5*lineSpacing 위치에 그려짐.

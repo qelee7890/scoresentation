@@ -202,6 +202,38 @@ html, body {
     margin-left: 0;
 }
 
+/* 가사 영역(lyrics-content) 기준으로 좌측에 배치
+ * 첫 가사 줄의 위쪽(악보 영역 바닥 근처)에 위치 */
+.slide-content {
+    position: relative;
+}
+
+.lyrics-content {
+    position: relative;
+}
+
+.slide-verse-badge {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    padding: calc(4px * var(--present-scale, 1)) calc(12px * var(--present-scale, 1));
+    border-radius: 999px;
+    background: rgba(140, 75, 47, 0.12);
+    color: var(--color-accent);
+    font-size: calc(20px * var(--present-scale, 1));
+    line-height: 1;
+    user-select: none;
+    z-index: 2;
+    white-space: nowrap;
+    visibility: hidden; /* JS가 위치 계산 후 표시 */
+}
+
+.slide-verse-badge.is-positioned {
+    visibility: visible;
+}
+
 /* 가사 영역 */
 .lyrics-content {
     display: flex;

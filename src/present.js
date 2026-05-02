@@ -45,6 +45,43 @@
         return String(value || "").normalize("NFC").toLowerCase()
             .replace(/<br\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
     }
+
+    // 한글 초성 추출 (예: "주 안에 거함" → "ㅈㅇㅇㄱㅎ")
+    const HANGUL_CHOSUNG = [
+        "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ",
+        "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
+    ];
+    const CHOSUNG_SET = new Set(HANGUL_CHOSUNG);
+
+    function toChosung(text) {
+        let out = "";
+        for (const ch of String(text || "")) {
+            const code = ch.codePointAt(0);
+            if (code >= 0xAC00 && code <= 0xD7A3) {
+                out += HANGUL_CHOSUNG[Math.floor((code - 0xAC00) / 588)];
+            } else if (CHOSUNG_SET.has(ch)) {
+                out += ch;
+            } else if (ch === " " || ch === "\t" || ch === "\n") {
+                // 공백 무시
+            } else {
+                out += ch.toLowerCase();
+            }
+        }
+        return out;
+    }
+
+    function isChosungOnly(text) {
+        const t = String(text || "").replace(/\s+/g, "");
+        if (!t) return false;
+        for (const ch of t) {
+            if (!CHOSUNG_SET.has(ch)) return false;
+        }
+        return true;
+    }
+
+    function stripSpaces(text) {
+        return String(text || "").replace(/\s+/g, "");
+    }
     function compareSongIds(aId, bId) {
         const aNumeric = /^\d+$/.test(aId);
         const bNumeric = /^\d+$/.test(bId);
@@ -79,10 +116,16 @@
         const songId = getSongId(song);
         const lyricSegments = flattenSongLyrics(song);
         const titleParts = [getSongDisplayTitle(song), song && song.title, song && song.subtitle, song && song.newTitle].filter(Boolean);
+        const haystack = normalizeSearchText([...titleParts, ...lyricSegments].join(" "));
+        const titleText = normalizeSearchText(titleParts.join(" "));
         return {
             id: songId, song,
-            haystack: normalizeSearchText([...titleParts, ...lyricSegments].join(" ")),
-            titleText: normalizeSearchText(titleParts.join(" ")),
+            haystack,
+            titleText,
+            haystackNoSpace: stripSpaces(haystack),
+            titleNoSpace: stripSpaces(titleText),
+            haystackChosung: toChosung(haystack),
+            titleChosung: toChosung(titleText),
             lyricSegments
         };
     }
@@ -384,6 +427,10 @@
                     const koreanEl = slideEl.querySelector(".lyrics-korean");
                     if (koreanEl) notesEngine.renderNotations(koreanEl, data.notes, data.key);
                 });
+                // 줌 변경 후 활성 슬라이드의 절 뱃지 위치 재계산
+                if (this.allSlides[this.currentGlobalIndex]) {
+                    this.positionVerseBadgeForSlide(this.allSlides[this.currentGlobalIndex]);
+                }
             });
         }
 
@@ -976,12 +1023,29 @@
         searchSongs(query) {
             const normalizedQuery = normalizeSearchText(query);
             if (!normalizedQuery) return [];
+
             const tokens = normalizedQuery.split(" ").filter(Boolean);
+            const queryNoSpace = stripSpaces(normalizedQuery);
+            const queryChosung = isChosungOnly(query) ? stripSpaces(query) : null;
+
+            const matches = (entry) => {
+                if (queryChosung) return entry.haystackChosung.includes(queryChosung);
+                if (tokens.every((token) => entry.haystack.includes(token))) return true;
+                if (queryNoSpace && entry.haystackNoSpace.includes(queryNoSpace)) return true;
+                return false;
+            };
+            const titleMatches = (entry) => {
+                if (queryChosung) return entry.titleChosung.includes(queryChosung);
+                if (tokens.every((token) => entry.titleText.includes(token))) return true;
+                if (queryNoSpace && entry.titleNoSpace.includes(queryNoSpace)) return true;
+                return false;
+            };
+
             return this.searchIndex
-                .filter((entry) => tokens.every((token) => entry.haystack.includes(token)))
+                .filter(matches)
                 .sort((a, b) => {
-                    const aTitleMatch = tokens.every((token) => a.titleText.includes(token));
-                    const bTitleMatch = tokens.every((token) => b.titleText.includes(token));
+                    const aTitleMatch = titleMatches(a);
+                    const bTitleMatch = titleMatches(b);
                     if (aTitleMatch !== bTitleMatch) return aTitleMatch ? -1 : 1;
                     return compareSongIds(a.id, b.id);
                 })
@@ -992,8 +1056,15 @@
             const normalizedQuery = normalizeSearchText(query);
             if (!normalizedQuery) return [];
             const tokens = normalizedQuery.split(" ").filter(Boolean);
+            const queryNoSpace = stripSpaces(normalizedQuery);
+            const queryChosung = isChosungOnly(query) ? stripSpaces(query) : null;
             return this.imageFolders
-                .filter((f) => tokens.every((t) => f.haystack.includes(t)))
+                .filter((f) => {
+                    if (queryChosung) return toChosung(f.name).includes(queryChosung);
+                    if (tokens.every((t) => f.haystack.includes(t))) return true;
+                    if (queryNoSpace && stripSpaces(f.haystack).includes(queryNoSpace)) return true;
+                    return false;
+                })
                 .slice(0, 10);
         }
 
@@ -2156,115 +2227,110 @@
         buildSlidesForHymn(hymn) {
             const slides = [];
             const showNotes = hasRenderableNotes(hymn);
-            const songRef = getSongReference(hymn);
             const isHymn = isHymnSong(hymn);
-            const songTitle = isHymn ? getSongDisplayTitle(hymn) : (hymn.title || "");
 
-            const subtitle = isHymn && hymn.newNumber
-                ? `새찬송가 ${hymn.newNumber}장`
-                : (hymn.subtitle || "");
+            // 영어 가사 4줄 → 2줄 (두 줄씩 한 줄로 합치기)
+            const compactEnglish = (text) => {
+                if (!text) return text;
+                const lines = text.split(/<br\s*\/?>/gi);
+                if (lines.length <= 2) return text;
+                const merged = [];
+                for (let i = 0; i < lines.length; i += 2) {
+                    const a = (lines[i] || "").trim();
+                    const b = (lines[i + 1] || "").trim();
+                    merged.push(a && b ? `${a} ${b}` : (a || b));
+                }
+                return merged.join("<br/>");
+            };
 
-            const metaParts = [hymn.key, hymn.timeSignature, hymn.composer].filter(Boolean);
-            const metaHtml = metaParts.length > 0
-                ? `<div class="hymn-meta">${escapeHtml(metaParts.join(" | "))}</div>`
-                : "";
-
-            let titleSlideHtml;
+            // 제목 표시: 찬송가는 "133장 (새135장) 어저께나 오늘이나" 형태, 그 외는 제목만
+            let displayTitle;
             if (isHymn) {
-                const numberPrefix = songRef ? `${escapeHtml(songRef)} ` : "";
-                titleSlideHtml = `
-                    <div class="slide title-slide">
-                        <div class="slide-content">
-                            <div class="hymn-title">${numberPrefix}${escapeHtml(hymn.title || "")}</div>
-                            ${subtitle ? `<div class="hymn-subtitle">${escapeHtml(subtitle)}</div>` : ""}
-                            ${metaHtml}
-                        </div>
-                    </div>
-                `;
+                const numberStr = hymn.number ? `${hymn.number}장` : "";
+                const newNumberStr = hymn.newNumber ? `(새${hymn.newNumber}장)` : "";
+                const titleParts = [numberStr, newNumberStr, hymn.title || ""].filter(Boolean);
+                displayTitle = titleParts.join(" ");
             } else {
-                titleSlideHtml = `
-                    <div class="slide title-slide">
-                        <div class="slide-content">
-                            <div class="hymn-title">${escapeHtml(hymn.title || "")}</div>
-                            ${subtitle ? `<div class="hymn-subtitle">${escapeHtml(subtitle)}</div>` : ""}
-                            ${metaHtml}
-                        </div>
-                    </div>
-                `;
+                displayTitle = hymn.title || "";
             }
 
-            slides.push({ type: "title", html: titleSlideHtml, notes: null });
-
+            // 모든 가사 슬라이드를 먼저 수집 (1절 → 후렴 → 2절 → 후렴 ...) — n장/N장 카운트용
+            const lyricSlides = [];
             if (hymn.verses) {
                 const verseNumbers = Object.keys(hymn.verses).sort((a, b) => parseInt(a) - parseInt(b));
-                const totalVerses = verseNumbers.length;
 
                 for (const verseNum of verseNumbers) {
                     const verse = hymn.verses[verseNum];
                     const slideCount = Math.max((verse.korean || []).length, (verse.english || []).length);
 
                     for (let i = 0; i < slideCount; i++) {
-                        const korean = (verse.korean || [])[i] || "";
-                        const english = (verse.english || [])[i] || "";
-                        const notesData = showNotes && verse.notes && verse.notes[i] ? verse.notes[i] : null;
-                        const notesClass = notesData ? "with-notes" : "";
-
-                        slides.push({
-                            type: "verse",
+                        lyricSlides.push({
+                            section: "verse",
                             verseNum,
-                            html: `
-                                <div class="slide">
-                                    <div class="slide-content">
-                                        <div class="slide-title">
-                                            <span class="slide-title-text">${escapeHtml(songTitle)}</span>
-                                            <span class="slide-section-badge"><span class="current">${verseNum}절</span><span class="separator">/</span><span class="total">${totalVerses}절</span></span>
-                                        </div>
-                                        <div class="lyrics-content ${notesClass}">
-                                            <div class="lyrics-korean" data-has-notes="${!!notesData}">${korean.replace(/<br\/>/g, "<br>")}</div>
-                                            ${english ? `<div class="lyrics-english">${english.replace(/<br\/>/g, "<br>")}</div>` : ""}
-                                        </div>
-                                    </div>
-                                </div>
-                            `,
-                            notes: notesData,
-                            timeSignature: hymn.timeSignature,
-                            key: hymn.key
+                            indexInSection: i,
+                            korean: (verse.korean || [])[i] || "",
+                            english: (verse.english || [])[i] || "",
+                            notesData: showNotes && verse.notes && verse.notes[i] ? verse.notes[i] : null
                         });
                     }
 
                     if (hymn.chorus && hymn.chorus.korean && hymn.chorus.korean.length > 0) {
                         const chorus = hymn.chorus;
                         for (let i = 0; i < chorus.korean.length; i++) {
-                            const korean = chorus.korean[i] || "";
-                            const english = (chorus.english || [])[i] || "";
-                            const notesData = showNotes && chorus.notes && chorus.notes[i] ? chorus.notes[i] : null;
-                            const notesClass = notesData ? "with-notes" : "";
-
-                            slides.push({
-                                type: "chorus",
-                                verseNum: "chorus",
-                                afterVerse: verseNum,
-                                html: `
-                                    <div class="slide">
-                                        <div class="slide-content">
-                                            <div class="slide-title">
-                                                <span class="slide-title-text">${escapeHtml(songTitle)}</span>
-                                                <span class="slide-section-badge is-chorus"><span class="current">후렴</span><span class="separator">/</span><span class="total">${totalVerses}절</span></span>
-                                            </div>
-                                            <div class="lyrics-content ${notesClass}">
-                                                <div class="lyrics-korean" data-has-notes="${!!notesData}">${korean.replace(/<br\/>/g, "<br>")}</div>
-                                                ${english ? `<div class="lyrics-english">${english.replace(/<br\/>/g, "<br>")}</div>` : ""}
-                                            </div>
-                                        </div>
-                                    </div>
-                                `,
-                                notes: notesData,
-                                timeSignature: hymn.timeSignature,
-                                key: hymn.key
+                            lyricSlides.push({
+                                section: "chorus",
+                                verseNum,
+                                indexInSection: i,
+                                korean: chorus.korean[i] || "",
+                                english: (chorus.english || [])[i] || "",
+                                notesData: showNotes && chorus.notes && chorus.notes[i] ? chorus.notes[i] : null
                             });
                         }
                     }
                 }
+            }
+
+            const totalSlides = lyricSlides.length;
+
+            for (let idx = 0; idx < lyricSlides.length; idx++) {
+                const ls = lyricSlides[idx];
+                const slidePos = idx + 1;
+                const notesClass = ls.notesData ? "with-notes" : "";
+
+                // 절 뱃지 표시 조건: 절 슬라이드 + 해당 절의 첫 슬라이드만, 후렴은 표시 X
+                const showVerseBadge = ls.section === "verse" && ls.indexInSection === 0;
+                const verseBadgeHtml = showVerseBadge
+                    ? `<span class="slide-verse-badge"><span class="current">${ls.verseNum}절</span></span>`
+                    : "";
+
+                // 제목 옆 카운터: n장/N장 (모든 가사/후렴 슬라이드)
+                const counterHtml = `<span class="slide-section-badge"><span class="current">${slidePos}장</span><span class="separator">/</span><span class="total">${totalSlides}장</span></span>`;
+
+                const englishHtml = compactEnglish(ls.english);
+
+                slides.push({
+                    type: ls.section === "chorus" ? "chorus" : "verse",
+                    verseNum: ls.section === "chorus" ? "chorus" : ls.verseNum,
+                    afterVerse: ls.section === "chorus" ? ls.verseNum : undefined,
+                    html: `
+                        <div class="slide">
+                            <div class="slide-content">
+                                <div class="slide-title">
+                                    <span class="slide-title-text">${escapeHtml(displayTitle)}</span>
+                                    ${counterHtml}
+                                </div>
+                                <div class="lyrics-content ${notesClass}">
+                                    ${verseBadgeHtml}
+                                    <div class="lyrics-korean" data-has-notes="${!!ls.notesData}">${ls.korean.replace(/<br\/>/g, "<br>")}</div>
+                                    ${englishHtml ? `<div class="lyrics-english">${englishHtml.replace(/<br\/>/g, "<br>")}</div>` : ""}
+                                </div>
+                            </div>
+                        </div>
+                    `,
+                    notes: ls.notesData,
+                    timeSignature: hymn.timeSignature,
+                    key: hymn.key
+                });
             }
 
             return slides;
@@ -2330,9 +2396,39 @@
                     requestAnimationFrame(() => {
                         const notesEngine = new NotesEngine(getNotesTheme());
                         notesEngine.renderNotations(koreanEl, data.notes, data.key);
+                        this.positionVerseBadgeForSlide(this.allSlides[index]);
                     });
                 }
+            } else {
+                requestAnimationFrame(() => this.positionVerseBadgeForSlide(this.allSlides[index]));
             }
+        }
+
+        positionVerseBadgeForSlide(slideEl) {
+            if (!slideEl) return;
+            const badge = slideEl.querySelector(".slide-verse-badge");
+            if (!badge) return;
+            const lyricsContent = slideEl.querySelector(".lyrics-content");
+            if (!lyricsContent) return;
+            const firstLineText = lyricsContent.querySelector(".lyrics-line-text")
+                || lyricsContent.querySelector(".lyrics-korean");
+            if (!firstLineText) return;
+
+            const containerRect = lyricsContent.getBoundingClientRect();
+            const textRect = firstLineText.getBoundingClientRect();
+            if (containerRect.height === 0 || textRect.height === 0) return;
+
+            // y: 첫 가사 줄의 세로 중앙
+            const top = textRect.top + textRect.height / 2 - containerRect.top - badge.offsetHeight / 2;
+
+            // x: 음자리표 위치 = 첫 SVG의 좌측 가장자리. SVG 없으면 가사 줄 좌측.
+            const firstSvg = lyricsContent.querySelector(".notation-svg");
+            const xRect = firstSvg ? firstSvg.getBoundingClientRect() : textRect;
+            const left = xRect.left - containerRect.left;
+
+            badge.style.top = `${Math.max(0, top)}px`;
+            badge.style.left = `${left}px`;
+            badge.classList.add("is-positioned");
         }
 
         nextSlide() {
@@ -2351,17 +2447,8 @@
             const startSlide = this.slideData[startIdx];
             if (!startSlide) return;
 
-            // 찬송가/악보: 타이틀(소개) 다음인 2번째 슬라이드로 (1장이면 그대로)
-            if (startSlide.type === "title") {
-                const nextIdx = startIdx + 1;
-                if (nextIdx < this.slideData.length && this.slideData[nextIdx].itemId === cur.itemId) {
-                    this.showGlobalSlide(nextIdx);
-                }
-                return;
-            }
-
-            // 이미지: 첫장으로 (1장이면 그대로)
-            if (startSlide.type === "media") {
+            // 찬송가/악보 또는 이미지: 첫 슬라이드로 (이미 첫이면 그대로)
+            if (startSlide.type === "verse" || startSlide.type === "chorus" || startSlide.type === "media") {
                 if (this.currentGlobalIndex !== startIdx) {
                     this.showGlobalSlide(startIdx);
                 }
@@ -2390,14 +2477,29 @@
             }
 
             // 찬송가/악보: 절 번호 또는 후렴(0)으로 이동
-            if (firstSlide.type !== "title") return;
+            if (firstSlide.type !== "verse" && firstSlide.type !== "chorus") return;
 
-            const targetVerse = key === "0" ? "chorus" : key;
+            // 0(후렴): 현재 절(또는 후렴이면 그 후렴이 속한 절)에 해당하는 후렴 첫 장으로
+            if (key === "0") {
+                const contextVerse = cur.type === "chorus" ? cur.afterVerse : cur.verseNum;
+                if (!contextVerse) return;
+                for (let i = startIdx; i < this.slideData.length; i++) {
+                    const s = this.slideData[i];
+                    if (s.itemId !== cur.itemId) break;
+                    if (s.type === "chorus" && s.afterVerse === contextVerse) {
+                        this.showGlobalSlide(i);
+                        return;
+                    }
+                }
+                return;
+            }
 
-            for (let i = startIdx + 1; i < this.slideData.length; i++) {
+            // 1~9: 해당 절의 첫 슬라이드
+            const targetVerse = key;
+            for (let i = startIdx; i < this.slideData.length; i++) {
                 const s = this.slideData[i];
                 if (s.itemId !== cur.itemId) break;
-                if (s.verseNum === targetVerse) {
+                if (s.type === "verse" && s.verseNum === targetVerse) {
                     this.showGlobalSlide(i);
                     return;
                 }
