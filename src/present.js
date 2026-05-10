@@ -843,6 +843,9 @@
                     saved = await window.SetlistStorage.update(this.setlistId, { name, items, settings });
                 } else {
                     saved = await window.SetlistStorage.create({ name, items, settings });
+                }
+                // baseline 셋리스트 update 시 새 user ID로 복제될 수 있으므로 항상 saved.id로 갱신
+                if (saved && saved.id != null) {
                     this.setlistId = saved.id;
                 }
                 this.setlistName = saved.name || name;

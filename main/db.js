@@ -267,6 +267,29 @@ export class SetlistRepository {
             );
         `);
         this._ensureUserAutoincrement();
+        this._cleanupLegacyBaselineCopies();
+    }
+
+    // 이전 버전에서 user DB에 baseline copy-on-write 된 항목과 tombstone을 제거.
+    // 새 정책: baseline에 있는 ID는 항상 baseline 그대로 사용.
+    _cleanupLegacyBaselineCopies() {
+        try {
+            // 1) baseline ID 영역(< USER_ID_OFFSET)에 있는 user 데이터 제거
+            this.userDb.prepare("DELETE FROM setlist_items WHERE setlist_id < ?").run(USER_ID_OFFSET);
+            this.userDb.prepare("DELETE FROM setlists WHERE id < ?").run(USER_ID_OFFSET);
+            this.userDb.prepare("DELETE FROM setlist_tombstones WHERE id < ?").run(USER_ID_OFFSET);
+
+            // 2) baseline에 동일 ID가 존재하는 user 셋리스트 제거 (sync-to-baseline로 user ID도 baseline에 들어간 경우)
+            if (this.baselineDb) {
+                const baselineIds = this.baselineDb.prepare("SELECT id FROM setlists").all().map((r) => Number(r.id));
+                if (baselineIds.length > 0) {
+                    const placeholders = baselineIds.map(() => "?").join(",");
+                    this.userDb.prepare(`DELETE FROM setlist_items WHERE setlist_id IN (${placeholders})`).run(...baselineIds);
+                    this.userDb.prepare(`DELETE FROM setlists WHERE id IN (${placeholders})`).run(...baselineIds);
+                    this.userDb.prepare(`DELETE FROM setlist_tombstones WHERE id IN (${placeholders})`).run(...baselineIds);
+                }
+            }
+        } catch (_) { /* ignore */ }
     }
 
     _ensureUserAutoincrement() {
@@ -311,22 +334,24 @@ export class SetlistRepository {
     }
 
     listSetlists() {
-        const userRows = this.userDb.prepare(`
-            SELECT s.id, s.name, s.created_at, s.updated_at,
-                   (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
-            FROM setlists s
-        `).all();
-        const userIds = new Set(userRows.map((r) => Number(r.id)));
-        const tombstones = this._tombstoneSet();
-
+        // baseline 셋리스트는 항상 최신 baseline 그대로
         let baselineRows = [];
         if (this.baselineDb) {
             baselineRows = this.baselineDb.prepare(`
                 SELECT s.id, s.name, s.created_at, s.updated_at,
                        (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
                 FROM setlists s
-            `).all().filter((r) => !userIds.has(Number(r.id)) && !tombstones.has(Number(r.id)));
+            `).all();
         }
+        const baselineIds = new Set(baselineRows.map((r) => Number(r.id)));
+
+        // 사용자 생성 셋리스트 (ID >= USER_ID_OFFSET) — baseline에 동일 ID가 있으면 baseline 우선
+        const userRows = this.userDb.prepare(`
+            SELECT s.id, s.name, s.created_at, s.updated_at,
+                   (SELECT COUNT(*) FROM setlist_items i WHERE i.setlist_id = s.id) AS item_count
+            FROM setlists s
+            WHERE s.id >= ?
+        `).all(USER_ID_OFFSET).filter((r) => !baselineIds.has(Number(r.id)));
 
         const merged = [...userRows, ...baselineRows].map((r) => this._summaryFromRow(r, r.item_count));
         merged.sort((a, b) => {
@@ -366,15 +391,18 @@ export class SetlistRepository {
 
     getSetlist(id) {
         const numId = Number(id);
-        const tomb = this.userDb.prepare("SELECT 1 FROM setlist_tombstones WHERE id = ?").get(numId);
-        if (tomb) return null;
 
-        const fromUser = this._getSetlistFromDb(this.userDb, numId);
-        if (fromUser) return fromUser;
-
+        // baseline에 같은 ID가 있으면 항상 baseline 우선 (sync-to-baseline로 user ID 영역도 가능)
         if (this.baselineDb) {
-            return this._getSetlistFromDb(this.baselineDb, numId);
+            const fromBaseline = this._getSetlistFromDb(this.baselineDb, numId);
+            if (fromBaseline) return fromBaseline;
         }
+
+        // baseline에 없을 때만 user DB 조회 (user ID 영역만)
+        if (numId >= USER_ID_OFFSET) {
+            return this._getSetlistFromDb(this.userDb, numId);
+        }
+
         return null;
     }
 
@@ -396,23 +424,27 @@ export class SetlistRepository {
         const numId = Number(id);
         const now = utcNowIso();
 
-        const tomb = this.userDb.prepare("SELECT 1 FROM setlist_tombstones WHERE id = ?").get(numId);
-        if (tomb) return null;
-
-        const userExists = !!this.userDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId);
-
-        if (!userExists) {
-            // If this is a baseline setlist, copy it into user DB (copy-on-write) using the same id.
-            if (!this.baselineDb) return null;
-            const base = this._getSetlistFromDb(this.baselineDb, numId);
+        // baseline에 존재하는 ID는 read-only → 새 user ID로 복제
+        const inBaseline = this.baselineDb
+            ? !!this.baselineDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId)
+            : false;
+        if (inBaseline || numId < USER_ID_OFFSET) {
+            const base = this.baselineDb ? this._getSetlistFromDb(this.baselineDb, numId) : null;
             if (!base) return null;
 
-            this.userDb.prepare(
-                "INSERT INTO setlists (id, name, created_at, updated_at, settings) VALUES (?, ?, ?, ?, ?)"
-            ).run(numId, base.name, base.createdAt, now, JSON.stringify(base.settings || {}));
-
-            this._replaceItems(numId, base.items.map((it) => ({ type: it.type, payload: it.payload })));
+            const newName = (name !== null && name !== undefined)
+                ? ((name || "").trim() || "새 셋리스트")
+                : base.name;
+            const newSettings = (settings !== null && settings !== undefined) ? settings : (base.settings || {});
+            const newItems = (items !== null && items !== undefined)
+                ? items
+                : base.items.map((it) => ({ type: it.type, payload: it.payload }));
+            return this.createSetlist(newName, newItems, newSettings);
         }
+
+        // user ID 일반 편집
+        const userExists = !!this.userDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId);
+        if (!userExists) return null;
 
         if (name !== null && name !== undefined) {
             const cleanName = (name || "").trim() || "새 셋리스트";
@@ -432,19 +464,14 @@ export class SetlistRepository {
 
     deleteSetlist(id) {
         const numId = Number(id);
-        const userResult = this.userDb.prepare("DELETE FROM setlists WHERE id = ?").run(numId);
 
+        // baseline에 있으면 삭제 불가 (배포 시 항상 다시 노출됨)
         const inBaseline = this.baselineDb
             ? !!this.baselineDb.prepare("SELECT 1 FROM setlists WHERE id = ?").get(numId)
             : false;
+        if (inBaseline || numId < USER_ID_OFFSET) return false;
 
-        if (inBaseline) {
-            this.userDb.prepare(`
-                INSERT INTO setlist_tombstones (id, deleted_at) VALUES (?, ?)
-                ON CONFLICT(id) DO UPDATE SET deleted_at = excluded.deleted_at
-            `).run(numId, utcNowIso());
-            return true;
-        }
+        const userResult = this.userDb.prepare("DELETE FROM setlists WHERE id = ?").run(numId);
         return userResult.changes > 0;
     }
 
