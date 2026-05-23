@@ -5189,6 +5189,13 @@
                 this.hymnMap = this.buildHymnMapFromStorage() || {};
                 this.refreshSavedHymnList();
 
+                // 프레젠테이션 등 다른 탭에 삭제 알림
+                try {
+                    const channel = new BroadcastChannel("scoresentation");
+                    channel.postMessage({ type: "hymn-deleted", id: hymnNumber });
+                    channel.close();
+                } catch (_) { /* ignore */ }
+
                 // 삭제된 곡이 현재 곡이면 다른 곡으로 전환하거나 빈 화면
                 const isCurrent = this.data && this.data.hymn && getSongId(this.data.hymn) === hymnNumber;
                 if (isCurrent) {

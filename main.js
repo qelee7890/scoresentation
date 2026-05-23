@@ -181,6 +181,11 @@ function registerHymnHandlers() {
 
     ipcMain.handle("hymns:delete", (_event, number) => {
         const deleted = hymnRepo.deleteHymn(String(number));
+        if (deleted) {
+            for (const win of BrowserWindow.getAllWindows()) {
+                win.webContents.send("hymn-deleted", String(number));
+            }
+        }
         return { deleted };
     });
 }

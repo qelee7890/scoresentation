@@ -26,6 +26,8 @@
     function getSongDisplayTitle(song) {
         const reference = getSongReference(song);
         if (!song || !song.title) return reference;
+        // 일반 곡(찬송가가 아닌 경우): reference는 ID이고 보통 title과 같거나 포함하므로 title만 표시
+        if (!isHymnSong(song)) return song.title;
         return reference ? `${reference} ${song.title}` : song.title;
     }
     function hasRenderableNotes(song) {
@@ -463,14 +465,20 @@
             // Electron IPC
             if (window.electronAPI && window.electronAPI.onHymnSaved) {
                 window.electronAPI.onHymnSaved((songId) => this.handleExternalSave(songId));
+                if (window.electronAPI.onHymnDeleted) {
+                    window.electronAPI.onHymnDeleted((songId) => this.handleExternalDelete(songId));
+                }
                 return;
             }
             // Web fallback: BroadcastChannel
             try {
                 const channel = new BroadcastChannel("scoresentation");
                 channel.addEventListener("message", (event) => {
-                    if (event.data && event.data.type === "hymn-saved") {
+                    if (!event.data) return;
+                    if (event.data.type === "hymn-saved") {
                         this.handleExternalSave(event.data.id);
+                    } else if (event.data.type === "hymn-deleted") {
+                        this.handleExternalDelete(event.data.id);
                     }
                 });
             } catch (_) { /* BroadcastChannel 미지원 환경 무시 */ }
@@ -489,6 +497,25 @@
                 const savedIndex = this.currentGlobalIndex;
                 this.rebuildPresentation();
                 this.showGlobalSlide(Math.min(savedIndex, this.allSlides.length - 1));
+            }
+        }
+
+        async handleExternalDelete(songId) {
+            await window.HymnStorage.init({ forceRefresh: true });
+            delete this.songMap[songId];
+            this.searchIndex = Object.keys(this.songMap)
+                .map((id) => buildSongSearchEntry(this.songMap[id]))
+                .filter((entry) => !!entry.id);
+            this.renderSearchResults();
+
+            // 셋리스트 곡 순서에서 해당 곡 자동 제거
+            const removedItems = this.items.filter((it) => it.type === "score" && it.payload && it.payload.songId === songId);
+            if (removedItems.length > 0) {
+                this.pushHistory();
+                this.items = this.items.filter((it) => !(it.type === "score" && it.payload && it.payload.songId === songId));
+                this.markDirty();
+                this.renderAll();
+                this.setStatus(`삭제된 곡 ${removedItems.length}개를 곡 순서에서 제거했습니다.`, "info");
             }
         }
 
@@ -1427,7 +1454,7 @@
 
         sectionsToHymn(title, sections, key, timeSignature, composer) {
             const hymn = {
-                id: "score-" + title,
+                id: title,
                 title: title,
                 category: "song",
                 key: key || "C",

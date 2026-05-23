@@ -168,7 +168,8 @@ class NotesEngine {
      * 조표 너비 계산
      */
     getKeySignatureWidth(keyInfo) {
-        if (!keyInfo || keyInfo.count === 0) return 0;
+        // 조표가 없는 경우에도 음자리표와 첫 음표 사이 여백을 확보
+        if (!keyInfo || keyInfo.count === 0) return this.keyToFirstNoteGap * 1.6;
         return keyInfo.count * this.keySignatureSpacing + 5 + this.keyToFirstNoteGap;
     }
 
