@@ -68,6 +68,9 @@ class NotesEngine {
 
             // 점음표
             augmentationDot: '\uE1E7', // 점 (augmentation dot)
+
+            // 페르마타 (음표 위)
+            fermataAbove: '\uE4C0',    // 페르마타 (위)
         };
 
         // 조표 위치 (플랫/샵 순서, 오선지 기준 - 0=F5 top line, 4=E4 bottom line)
@@ -242,7 +245,7 @@ class NotesEngine {
      * @param {boolean} skipFlag - true면 꼬리 생략 (연결선 사용 시)
      * @param {boolean} skipStem - true면 기둥 생략 (연결선에서 기둥을 직접 그릴 때)
      */
-    createNote(x, pitch, duration, staffTop, color = null, skipFlag = false, skipStem = false, accidental = null) {
+    createNote(x, pitch, duration, staffTop, color = null, skipFlag = false, skipStem = false, accidental = null, fermata = false) {
         const noteColor = color || this.noteColor;
         const pitchPos = this.pitchMap[pitch] ?? 3;
 
@@ -327,6 +330,24 @@ class NotesEngine {
                           dominant-baseline="middle">${flagGlyph}</text>
                 `;
             }
+        }
+
+        // 페르마타 (음표 위)
+        // - 최소 오선지 위쪽에 위치
+        // - 음표 머리(stemUp이면 stem top)보다 위에 위치
+        if (fermata) {
+            const noteTopY = stemDown
+                ? (noteY - this.lineSpacing * 0.55)              // 머리 위
+                : (noteY - this.stemHeight + this.stemStartOffsetUp); // stem 위
+            const fermataY = Math.min(staffTop - this.lineSpacing * 0.3, noteTopY - this.lineSpacing * 0.4);
+            svg += `
+                <text x="${x}" y="${fermataY}"
+                      font-family="Bravura, 'Bravura Text'"
+                      font-size="${this.fontSize}"
+                      fill="${noteColor}"
+                      text-anchor="middle"
+                      dominant-baseline="alphabetic">${this.smufl.fermataAbove}</text>
+            `;
         }
 
         return svg;
@@ -534,7 +555,8 @@ class NotesEngine {
                     null,
                     isBeamed,  // skipFlag: 연결선 그룹이면 꼬리 생략
                     isBeamed,  // skipStem: 연결선 그룹이면 기둥도 생략 (createBeams에서 그림)
-                    notes[i].accidental || null
+                    notes[i].accidental || null,
+                    !!notes[i].fermata
                 );
             }
         }
@@ -560,7 +582,8 @@ class NotesEngine {
                     danglingColor,
                     false,
                     false,
-                    note.accidental || null
+                    note.accidental || null,
+                    !!note.fermata
                 );
             });
         }

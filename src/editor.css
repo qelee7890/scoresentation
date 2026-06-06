@@ -701,6 +701,13 @@ body.editor-body {
     cursor: not-allowed;
 }
 
+.editor-bravura-glyph {
+    font-family: 'Bravura', 'Bravura Text', serif;
+    font-size: 22px;
+    line-height: 1;
+    display: inline-block;
+}
+
 .editor-beam-menu .editor-note-duration-list button,
 .editor-beam-menu button[data-beam-menu-action="back"] {
     width: auto;

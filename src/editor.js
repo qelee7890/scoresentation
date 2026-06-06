@@ -2978,7 +2978,9 @@
                 }
 
                 if (target.existingNote && (event.ctrlKey || event.metaKey || event.shiftKey)) {
-                    this.clearSelectedNoteTarget(false);
+                    // 누적 선택을 유지해야 하므로 selectedBeamNotes를 보존한다.
+                    // 레거시 단일 선택 상태(selectedNoteTarget)만 정리한다.
+                    this.selectedNoteTarget = null;
                     this.toggleBeamSelection(target, event.ctrlKey || event.metaKey || event.shiftKey);
                     this.pendingClickTimer = null;
                     return;
@@ -4304,6 +4306,7 @@
             const allSharp = notes.length > 0 && notes.every((n) => n.accidental === "sharp");
             const allFlat = notes.length > 0 && notes.every((n) => n.accidental === "flat");
             const allNatural = notes.length > 0 && notes.every((n) => n.accidental === "natural");
+            const allFermata = notes.length > 0 && notes.every((n) => !!n.fermata);
 
             // 임시표 비활성화: 모든 선택 음표가 조표와 중복이고, 하나도 해당 임시표가 적용되어 있지 않으면 비활성화
             let sharpDisabled = true, flatDisabled = true, naturalDisabled = true;
@@ -4330,6 +4333,7 @@
                 <button type="button" data-beam-menu-action="sharp" ${dis(sharpDisabled)} class="${allSharp ? "is-active" : ""}" title="일괄 샵 토글">♯</button>
                 <button type="button" data-beam-menu-action="flat" ${dis(flatDisabled)} class="${allFlat ? "is-active" : ""}" title="일괄 플랫 토글">♭</button>
                 <button type="button" data-beam-menu-action="natural" ${dis(naturalDisabled)} class="${allNatural ? "is-active" : ""}" title="일괄 제자리표 토글">♮</button>
+                <button type="button" data-beam-menu-action="fermata" class="${allFermata ? "is-active" : ""}" title="${allFermata ? "페르마타 제거" : "페르마타 추가"}"><span class="editor-bravura-glyph"></span></button>
                 <button type="button" data-beam-menu-action="beam" ${dis(beamDisabled)} class="${beamActive ? "is-active" : ""}" title="${beamActive ? "연결선 해제" : "연결선 적용"}">⟂</button>
                 <button type="button" data-beam-menu-action="delete" title="일괄 삭제">🗑</button>
             `;
@@ -4384,6 +4388,11 @@
 
             if (action === "sharp" || action === "flat" || action === "natural") {
                 this.applyBeamBulkAccidental(action);
+                return;
+            }
+
+            if (action === "fermata") {
+                this.applyBeamBulkFermata();
                 return;
             }
 
@@ -4452,6 +4461,22 @@
             this._refreshAfterBeamBulk();
             const labels = { sharp: "샵", flat: "플랫", natural: "제자리표" };
             this.setStatus(allHave ? `${items.length}개 ${labels[kind]}을(를) 제거했습니다.` : `${items.length}개 ${labels[kind]}을(를) 추가했습니다.`);
+        }
+
+        applyBeamBulkFermata() {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) return;
+            const allHave = items.every((item) => !!item.note.fermata);
+            this.recordHistory();
+            for (const item of items) {
+                if (allHave) {
+                    delete item.note.fermata;
+                } else {
+                    item.note.fermata = true;
+                }
+            }
+            this._refreshAfterBeamBulk();
+            this.setStatus(allHave ? `${items.length}개 페르마타를 제거했습니다.` : `${items.length}개 페르마타를 추가했습니다.`);
         }
 
         applyBeamBulkDelete() {
