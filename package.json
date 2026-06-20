@@ -1,6 +1,6 @@
 {
   "name": "scoresentation",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "private": true,
   "type": "module",
   "main": "main.js",
@@ -17,6 +17,7 @@
   "build": {
     "appId": "com.scoresentation.app",
     "productName": "Scoresentation",
+    "npmRebuild": false,
     "directories": {
       "output": "dist"
     },
