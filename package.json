@@ -7,10 +7,11 @@
   "description": "Church hymn presentation and score editor",
   "scripts": {
     "start": "electron .",
-    "rebuild": "electron-rebuild",
-    "build": "electron-builder --win",
+    "rebuild": "electron-rebuild -f",
+    "verify-native": "electron tools/check-native-abi.cjs",
+    "build": "npm run rebuild && npm run verify-native && electron-builder --win",
     "build-icon": "node tools/build-icon.mjs",
-    "publish": "electron-builder --win --publish always",
+    "publish": "npm run rebuild && npm run verify-native && electron-builder --win --publish always",
     "server": "python tools/server.py",
     "sync-baseline": "python tools/sync-to-baseline.py"
   },
