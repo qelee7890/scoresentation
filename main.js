@@ -40,6 +40,7 @@ fs.mkdirSync(IMAGES_DIR, { recursive: true });
 let hymnRepo;
 let setlistRepo;
 let mainWindow;
+let isQuittingForUpdate = false; // bypass unsaved-changes guard when restarting to install an update
 
 // ── Custom protocol ──
 
@@ -132,6 +133,7 @@ function registerDirtyHandlers() {
 function attachCloseGuard(win) {
     const wcId = win.webContents.id;
     win.on("close", (event) => {
+        if (isQuittingForUpdate) return; // updating: don't block quit with the unsaved-changes prompt
         if (forceCloseWindows.has(wcId)) return;
         if (!dirtyWindows.get(wcId)) return;
         event.preventDefault();
@@ -393,7 +395,8 @@ function setupAutoUpdater() {
         }).then((result) => {
             if (result.response === 0) {
                 sendUpdateEventToRenderer("update:installing", {});
-                // (isSilent=true, isForceRunAfter=true) → NSIS UI를 띄우지 않고 설치 후 자동 재실행.
+                isQuittingForUpdate = true; // bypass unsaved-changes close guard so quit isn't blocked
+                // oneClick NSIS: (isSilent=true, isForceRunAfter=true) → 무인 설치 후 자동 재실행.
                 setTimeout(() => autoUpdater.quitAndInstall(true, true), 300);
             }
         });

@@ -1,6 +1,6 @@
 {
   "name": "scoresentation",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "private": true,
   "type": "module",
   "main": "main.js",
@@ -45,8 +45,8 @@
       "icon": "build/music_presenter_icon.ico"
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "oneClick": true,
+      "perMachine": false
     },
     "publish": {
       "provider": "github",
