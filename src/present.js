@@ -2343,7 +2343,7 @@
                     verseNum: ls.section === "chorus" ? "chorus" : ls.verseNum,
                     afterVerse: ls.section === "chorus" ? ls.verseNum : undefined,
                     html: `
-                        <div class="slide">
+                        <div class="slide slide-lyrics">
                             <div class="slide-content">
                                 <div class="slide-title">
                                     <span class="slide-title-text">${escapeHtml(displayTitle)}</span>

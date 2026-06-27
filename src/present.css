@@ -397,6 +397,12 @@ body.present-body {
     padding: 6% 1.5% 4% 1.5%;
 }
 
+/* 가사(찬송가) 슬라이드의 상단 제목 높이를 이미지 슬라이드(.slide-media, top 3%)와
+ * 동일하게 맞춘다. 기본 .slide의 top 6%를 3%로 낮춰 제목 y 위치를 위로 올림. */
+.present-body .slide.slide-lyrics {
+    padding-top: 3%;
+}
+
 /* 메인 슬라이드 콘텐츠의 너비 제한을 풀어 더 긴 악보가 가득 차도록 한다. */
 .present-body .slide:not(.slide-text) .slide-content {
     max-width: none;
