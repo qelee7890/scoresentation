@@ -10,6 +10,11 @@
 // 색상 상수 (CSS 변수 --color-gray와 동일)
 const COLOR_GRAY = '#666';
 
+// 스페인어 음절 표기 정규화: ~(단어 내부 결합) 제거, ‿(단어 사이 연음) → 공백
+function formatSyllableText(s) {
+    return String(s == null ? '' : s).replace(/~/g, '').replace(/‿/g, ' ');
+}
+
 class NotesEngine {
     constructor(options = {}) {
         // 오선지 설정
@@ -596,7 +601,7 @@ class NotesEngine {
      * 가사 요소에 악보 추가
      * @param {string} key - 조표 문자열 (예: "4b", "Bb")
      */
-    addNotationToLyrics(lyricsElement, notesData, timeSignature, key = null) {
+    addNotationToLyrics(lyricsElement, notesData, timeSignature, key = null, spanish = null) {
         if (!notesData) return;
 
         this.defaultDuration = this.getDefaultDuration(timeSignature);
@@ -627,7 +632,7 @@ class NotesEngine {
         lyricsElement.innerHTML = newHtml;
 
         requestAnimationFrame(() => {
-            this.renderNotations(lyricsElement, notesData, key);
+            this.renderNotations(lyricsElement, notesData, key, spanish);
         });
     }
 
@@ -635,7 +640,8 @@ class NotesEngine {
      * 모든 줄의 악보 렌더링
      * @param {string} key - 조표 문자열
      */
-    renderNotations(lyricsElement, notesData, key = null) {
+    renderNotations(lyricsElement, notesData, key = null, spanish = null) {
+        const spanishLines = this.splitSpanishLines(spanish);
         const lineContainers = lyricsElement.querySelectorAll('.lyrics-line-with-notes');
 
         lineContainers.forEach((container) => {
@@ -649,10 +655,200 @@ class NotesEngine {
 
             if (!textElement || !notationContainer) return;
 
-            const { chars, positions, totalWidth } = this.measureCharPositions(textElement);
+            const hasSyllable = Array.isArray(lineNotes) && lineNotes.some(
+                (n) => n && typeof n.syllable === 'string' && n.syllable.trim() !== ''
+            );
+
+            let measured;
+            let groupRegions = null;
+            if (hasSyllable) {
+                // 한글은 자연 간격을 기본으로, 스페인어 단어가 더 넓은 구간만 그 단어 폭으로 국소 확장.
+                const breaks = this.deriveWordBreaks(spanishLines[lineIndex], lineNotes);
+                const groups = this.buildWordGroups(lineNotes, breaks);
+                measured = this.layoutSpanishWords(textElement, lineNotes, groups);
+                groupRegions = measured.groupRegions;
+            } else {
+                measured = this.measureCharPositions(textElement);
+            }
+
+            const { chars, positions, totalWidth } = measured;
             const svg = this.createLineNotation(chars, lineNotes, positions, totalWidth, key);
             notationContainer.innerHTML = svg;
+
+            // 스페인어 단어를 각 음표 구간 중앙에 정렬해 표시 (음표와 정렬)
+            this.renderSpanishWords(container, groupRegions, totalWidth);
         });
+    }
+
+    /**
+     * 스페인어 단어그룹 기준 한글 좌표 산출 (scaleX 미사용).
+     * - 한글 자연 위치를 기본으로, 각 단어그룹의 한글 구간이 그 스페인어 단어보다 좁을 때만
+     *   그 구간을 (그룹 내부 간격을 비례 확대해) 스페인어 단어 폭으로 국소 확장.
+     * - 단어 사이는 한글 자연 간격(+스페인어 공백 최소 보장).
+     * @returns { chars, positions, totalWidth, groupRegions:[{left,right,text}] }
+     */
+    layoutSpanishWords(textElement, lineNotes, groups) {
+        // 원본 한글(공백 포함)을 보존: 재렌더 시 textElement는 .kcol(공백 없는)로 바뀌어 있으므로,
+        // 최초 1회 원문을 data 속성에 저장하고 이후엔 그것을 읽는다 (띄어쓰기 유실 방지).
+        let text = textElement.getAttribute('data-kortext');
+        if (text === null) {
+            text = textElement.textContent;
+            textElement.setAttribute('data-kortext', text);
+        }
+        const tokens = [];
+        for (const ch of text) tokens.push({ ch, isSpace: ch === ' ' || ch === '\n' });
+        const kchars = tokens.filter((t) => !t.isSpace).map((t) => t.ch);
+
+        // 1) 자연 한글: 글자 중심(natPos) + 폭(kw) 측정 (공백 보존)
+        let measHtml = '';
+        let ci = 0;
+        for (const t of tokens) {
+            if (t.isSpace) { measHtml += t.ch; continue; }
+            measHtml += `<span class="char-measure" data-i="${ci}">${t.ch}</span>`;
+            ci++;
+        }
+        textElement.innerHTML = measHtml;
+        const trect = textElement.getBoundingClientRect();
+        const natPos = [];
+        const kw = [];
+        textElement.querySelectorAll('.char-measure[data-i]').forEach((s) => {
+            const r = s.getBoundingClientRect();
+            natPos.push(r.left - trect.left + r.width / 2);
+            kw.push(r.width);
+        });
+        const n = Math.min(natPos.length, lineNotes.length);
+
+        // 2) 그룹별 스페인어 단어 폭 + 스페인어 공백폭 측정 (.syllable-line 폰트)
+        const gauge = document.createElement('div');
+        gauge.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:-9999px;top:0';
+        textElement.appendChild(gauge);
+        const measW = (txt) => {
+            const s = document.createElement('span');
+            s.className = 'syllable-line';
+            s.textContent = txt;
+            gauge.innerHTML = '';
+            gauge.appendChild(s);
+            return s.getBoundingClientRect().width;
+        };
+        const spaceW = Math.max(0, measW('x x') - measW('xx'));
+        for (const g of groups) g.width = g.text ? measW(g.text) : 0;
+        textElement.removeChild(gauge);
+
+        // 3) 한글 자연 위치(natPos, 한글 띄어쓰기 그대로 보존)를 유지하면서, 스페인어 단어가
+        //    서로 겹칠 때만 필요한 만큼 오른쪽으로 shift. → 한글 간격은 자연 그대로,
+        //    넓은 단어가 있는 곳만 그 뒤가 밀려난다.
+        const finalPos = new Array(n).fill(0);
+        const groupRegions = [];   // { center, text }
+        let shift = 0;
+        let prevWordRight = -1e9;
+        for (const g of groups) {
+            const a = g.start, b = Math.min(g.end, n - 1);
+            if (a < 0 || a > n - 1) continue;
+            const W = g.width || 0;
+            const natMid = (natPos[a] + natPos[b]) / 2;
+            let center = natMid + shift;
+            const minCenter = prevWordRight + spaceW + W / 2;   // 앞 단어와 겹치지 않게
+            if (center < minCenter) { center = minCenter; shift = center - natMid; }
+            if (center - W / 2 < 0) { center = W / 2; shift = center - natMid; }   // 왼쪽 클리핑 방지
+            for (let i = a; i <= b; i++) finalPos[i] = natPos[i] + shift;
+            if (g.text) groupRegions.push({ center, text: g.text });
+            prevWordRight = center + W / 2;
+        }
+
+        const totalWidth = Math.max(
+            n > 0 ? finalPos[n - 1] + (kw[n - 1] || 0) / 2 : 0,
+            prevWordRight,
+            0
+        );
+
+        // 4) 한글을 finalPos에 absolute 배치 (한글 자연 간격 유지)
+        let layoutHtml = '';
+        for (let i = 0; i < n; i++) {
+            layoutHtml += `<span class="kcol" style="position:absolute;left:${finalPos[i].toFixed(2)}px;top:0;transform:translateX(-50%)">${kchars[i]}</span>`;
+        }
+        textElement.style.position = 'relative';
+        textElement.style.width = `${totalWidth}px`;
+        textElement.style.height = '1em';
+        textElement.innerHTML = layoutHtml;
+
+        return { chars: kchars.slice(0, n), positions: finalPos.slice(0, n), totalWidth, groupRegions };
+    }
+
+    /** 스페인어 단어들을 각 그룹 구간 중앙에 표시 */
+    renderSpanishWords(container, groupRegions, totalWidth) {
+        const existing = container.querySelector('.lyrics-line-syllable');
+        if (existing) existing.remove();
+        if (!groupRegions || !totalWidth) return;
+
+        const row = document.createElement('div');
+        row.className = 'lyrics-line-syllable';
+        row.style.width = `${totalWidth}px`;
+        for (const g of groupRegions) {
+            if (!g.text) continue;
+            const span = document.createElement('span');
+            span.className = 'syllable-line';
+            span.style.left = `${g.center}px`;
+            span.textContent = g.text;
+            row.appendChild(span);
+        }
+        container.appendChild(row);
+    }
+
+    /**
+     * 원본 spanish 줄과 음절들을 매칭해 각 음절이 "새 단어 시작"인지 판정.
+     * @returns {boolean[]|null} 불일치/누락 시 null → 음절 단위 폴백
+     */
+    deriveWordBreaks(spanishLine, lineNotes) {
+        if (!spanishLine || typeof spanishLine !== 'string') return null;
+        const seq = [];
+        let pending = false;
+        for (const ch of spanishLine.replace(/<br\s*\/?>/gi, '')) {
+            if (/\s/.test(ch)) { pending = true; continue; }
+            if (!/\p{L}/u.test(ch)) continue;
+            seq.push({ c: ch.toLowerCase(), sp: pending });
+            pending = false;
+        }
+        const breaks = [];
+        let ptr = 0;
+        for (let i = 0; i < lineNotes.length; i++) {
+            const raw = (lineNotes[i] && typeof lineNotes[i].syllable === 'string') ? lineNotes[i].syllable : '';
+            const lets = raw.replace(/[^\p{L}]/gu, '').toLowerCase();
+            let wb = false;
+            for (let j = 0; j < lets.length; j++) {
+                if (ptr >= seq.length) return null;
+                if (j === 0 && seq[ptr].sp) wb = true;
+                if (seq[ptr].c !== lets[j]) return null;
+                ptr++;
+            }
+            breaks.push(wb);
+        }
+        if (ptr !== seq.length) return null;
+        return breaks;
+    }
+
+    /** 음절을 단어 단위로 묶고 그룹 텍스트(~제거, ‿→공백)를 만든다. breaks=null이면 음절 단위. */
+    buildWordGroups(lineNotes, breaks) {
+        const groups = [];
+        for (let i = 0; i < lineNotes.length; i++) {
+            const isBreak = (i === 0) || !breaks || breaks[i];
+            if (isBreak || groups.length === 0) groups.push({ start: i, end: i });
+            else groups[groups.length - 1].end = i;
+        }
+        for (const g of groups) {
+            let raw = '';
+            for (let i = g.start; i <= g.end; i++) {
+                const s = (lineNotes[i] && typeof lineNotes[i].syllable === 'string') ? lineNotes[i].syllable : '';
+                raw += s;
+            }
+            g.text = formatSyllableText(raw).trim();
+        }
+        return groups;
+    }
+
+    /** spanish 슬라이드 문자열을 시각 줄 배열로 분리 */
+    splitSpanishLines(spanish) {
+        if (!spanish || typeof spanish !== 'string') return [];
+        return spanish.split(/<br\s*\/?>/gi);
     }
 
     /**
