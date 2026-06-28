@@ -36,6 +36,71 @@ export class HymnRepository {
 
         this.baselineDb = openReadonlyIfExists(baselineDbPath);
         if (this.baselineDb) this._verifyBaselineSchema();
+
+        this._runOneTimeMigrations();
+    }
+
+    /** 곡 JSON에 스페인어 가사가 들어있는지(글자가 있는 spanish 필드) */
+    _hymnHasSpanish(hymnJson) {
+        try {
+            let d = JSON.parse(hymnJson);
+            if (d && typeof d === "object" && !d.verses) {
+                const keys = Object.keys(d);
+                if (keys.length === 1 && d[keys[0]] && typeof d[keys[0]] === "object" && d[keys[0]].verses) {
+                    d = d[keys[0]];
+                }
+            }
+            const secs = Object.values(d.verses || {});
+            if (d.chorus) secs.push(d.chorus);
+            for (const sec of secs) {
+                const arr = sec && Array.isArray(sec.spanish) ? sec.spanish : [];
+                for (const s of arr) {
+                    if (typeof s === "string" && /[A-Za-zÀ-ɏ]/.test(s)) return true;
+                }
+            }
+        } catch (_e) { /* ignore */ }
+        return false;
+    }
+
+    /**
+     * 일회성 마이그레이션 (앱 시작 시 1회):
+     * 베이스라인에는 스페인어가 있는데 사용자 override에는 없는(=옛 편집본) 곡의 override를
+     * 제거해, 새 베이스라인(스페인어 포함) 버전이 표시되도록 한다. 같은 이유의 tombstone도 해제.
+     * 사용자가 스페인어를 포함해 직접 편집한 곡은 건드리지 않는다.
+     */
+    _runOneTimeMigrations() {
+        try {
+            this.userDb.exec(`CREATE TABLE IF NOT EXISTS app_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT '')`);
+            const KEY = "migration:fix_stale_spanish_overrides_v1";
+            if (this.userDb.prepare("SELECT 1 FROM app_meta WHERE key = ?").get(KEY)) return;
+
+            let removed = 0;
+            if (this.baselineDb) {
+                const delHymn = this.userDb.prepare("DELETE FROM saved_hymns WHERE number = ?");
+                const delTomb = this.userDb.prepare("DELETE FROM user_tombstones WHERE number = ?");
+
+                for (const ur of this._selectAll(this.userDb)) {
+                    const baseRow = this._selectOne(this.baselineDb, ur.number);
+                    if (!baseRow) continue;
+                    if (this._hymnHasSpanish(baseRow.hymn_json) && !this._hymnHasSpanish(ur.hymn_json)) {
+                        delHymn.run(ur.number);
+                        delTomb.run(ur.number);
+                        removed++;
+                    }
+                }
+                for (const t of this.userDb.prepare("SELECT number FROM user_tombstones").all()) {
+                    const baseRow = this._selectOne(this.baselineDb, t.number);
+                    if (baseRow && this._hymnHasSpanish(baseRow.hymn_json)) {
+                        delTomb.run(t.number);
+                        removed++;
+                    }
+                }
+            }
+            this.userDb.prepare("INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)").run(KEY, utcNowIso());
+            if (removed > 0) console.log(`[migration] fix_stale_spanish_overrides_v1: removed ${removed} stale override(s)/tombstone(s)`);
+        } catch (err) {
+            console.warn(`[migration] fix_stale_spanish_overrides_v1 failed: ${err.message}`);
+        }
     }
 
     _initUserSchema() {
