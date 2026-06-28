@@ -699,6 +699,13 @@ class NotesEngine {
         for (const ch of text) tokens.push({ ch, isSpace: ch === ' ' || ch === '\n' });
         const kchars = tokens.filter((t) => !t.isSpace).map((t) => t.ch);
 
+        // 재렌더(저장·슬라이드 전환) 시 이전 layout이 남긴 인라인 스타일(고정 width 등)을 먼저 비운다.
+        // 안 그러면 고정폭 + text-align:center 때문에 측정 글자가 가운데로 밀려 natPos가 어긋나
+        // 매 렌더마다 간격이 달라진다(멱등성 깨짐).
+        textElement.style.width = '';
+        textElement.style.height = '';
+        textElement.style.position = '';
+
         // 1) 자연 한글: 글자 중심(natPos) + 폭(kw) 측정 (공백 보존)
         let measHtml = '';
         let ci = 0;
@@ -734,24 +741,67 @@ class NotesEngine {
         for (const g of groups) g.width = g.text ? measW(g.text) : 0;
         textElement.removeChild(gauge);
 
-        // 3) 한글 자연 위치(natPos, 한글 띄어쓰기 그대로 보존)를 유지하면서, 스페인어 단어가
-        //    서로 겹칠 때만 필요한 만큼 오른쪽으로 shift. → 한글 간격은 자연 그대로,
-        //    넓은 단어가 있는 곳만 그 뒤가 밀려난다.
+        // 3) 스페인어 단어가 겹치지 않도록 필요한 만큼 오른쪽으로 shift 하되, 그 여분 간격이
+        //    한글 단어 "내부"에 들어가 단어가 갈라지는 일이 없게 한다.
+        //    → 글자별 필요 shift를 구한 뒤 한글 단어 단위로 max 적용(단어 내부는 자연 간격 유지,
+        //      여분은 단어 경계로 흡수). 폰트 크기와 무관하게 한글 단어가 보존된다.
+
+        // (a) 글자별 한글 단어 id (원문 띄어쓰기 기준)
+        const wordId = new Array(n).fill(0);
+        {
+            let w = 0, ci2 = 0, pending = false;
+            for (const t of tokens) {
+                if (t.isSpace) { pending = true; continue; }
+                if (pending) { if (ci2 > 0) w++; pending = false; }
+                if (ci2 < n) wordId[ci2] = w;
+                ci2++;
+            }
+        }
+
+        // (b) 글자별 필요 shift (스페인어 단어 비겹침 제약, 연속 누적)
+        const shiftByChar = new Array(n).fill(0);
+        {
+            let shift = 0, prevRight = -1e9;
+            for (const g of groups) {
+                const a = g.start, b = Math.min(g.end, n - 1);
+                if (a < 0 || a > n - 1) continue;
+                const W = g.width || 0;
+                const natMid = (natPos[a] + natPos[b]) / 2;
+                let center = natMid + shift;
+                const minCenter = prevRight + spaceW + W / 2;   // 앞 단어와 겹치지 않게
+                if (center < minCenter) { center = minCenter; shift = center - natMid; }
+                for (let i = a; i <= b; i++) shiftByChar[i] = shift;
+                prevRight = center + W / 2;
+            }
+        }
+
+        // (c) 한글 단어 단위로 shift 스냅 (단어 내 max → 단어 내부는 자연 간격, 단조 증가)
+        const wordShift = [];
+        for (let i = 0; i < n; i++) {
+            const w = wordId[i];
+            wordShift[w] = Math.max(wordShift[w] || 0, shiftByChar[i]);
+        }
+        for (let w = 1; w < wordShift.length; w++) {
+            wordShift[w] = Math.max(wordShift[w] || 0, wordShift[w - 1] || 0);
+        }
         const finalPos = new Array(n).fill(0);
+        for (let i = 0; i < n; i++) finalPos[i] = natPos[i] + (wordShift[wordId[i]] || 0);
+
+        // (d) 스페인어 단어 중심 = 스냅된 글자 위치. 단 한글 단어 내부에서는 글자 간격이
+        //     자연(좁음)이라 스페인어 단어끼리 겹칠 수 있으므로, 한글은 그대로 두고
+        //     스페인어 단어만 최소 간격으로 오른쪽으로 민다. 다음 한글 단어 경계에서
+        //     글자가 앞서 있어 정렬이 자동 복귀된다. (충돌 방지 + 한글 단어 보존)
         const groupRegions = [];   // { center, text }
-        let shift = 0;
         let prevWordRight = -1e9;
         for (const g of groups) {
             const a = g.start, b = Math.min(g.end, n - 1);
             if (a < 0 || a > n - 1) continue;
+            if (!g.text) continue;   // 빈 음절(멜리스마)은 스페인어 배치에 영향 없음
             const W = g.width || 0;
-            const natMid = (natPos[a] + natPos[b]) / 2;
-            let center = natMid + shift;
-            const minCenter = prevWordRight + spaceW + W / 2;   // 앞 단어와 겹치지 않게
-            if (center < minCenter) { center = minCenter; shift = center - natMid; }
-            if (center - W / 2 < 0) { center = W / 2; shift = center - natMid; }   // 왼쪽 클리핑 방지
-            for (let i = a; i <= b; i++) finalPos[i] = natPos[i] + shift;
-            if (g.text) groupRegions.push({ center, text: g.text });
+            let center = (finalPos[a] + finalPos[b]) / 2;
+            const minCenter = prevWordRight + spaceW + W / 2;
+            if (center < minCenter) center = minCenter;
+            groupRegions.push({ center, text: g.text });
             prevWordRight = center + W / 2;
         }
 
