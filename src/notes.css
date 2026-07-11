@@ -53,31 +53,6 @@
     white-space: nowrap;  /* 음표-가사 정렬 유지를 위해 줄바꿈 방지 */
 }
 
-/* 스페인어 줄 — 한글 줄 바로 아래, 단어별로 음표 구간 중앙에 배치 */
-.lyrics-line-syllable {
-    position: relative;
-    align-self: center;     /* 한글 줄과 같은 기준으로 중앙 정렬 */
-    height: 0.95em;         /* 자식이 absolute라 부모 높이 명시 */
-    margin-top: 0.3em;
-}
-
-/* 스페인어 단어 글꼴 — 측정용 임시 span에도 동일 적용되도록 ancestor 조건 없이 지정.
- * (이 규칙이 .lyrics-line-syllable 안에서만 걸리면 폭 측정이 한글 크기로 잘못돼 한글이 과확장됨) */
-.syllable-line {
-    white-space: nowrap;
-    font-size: 0.62em;             /* 한글 대비 축소(폭 절감) */
-    letter-spacing: -0.01em;
-    line-height: 1;
-    color: #000;
-}
-
-/* 각 단어가 자기 음표 구간 중앙에 오도록 절대배치 */
-.lyrics-line-syllable .syllable-line {
-    position: absolute;
-    top: 0;
-    transform: translateX(-50%);
-}
-
 /* 글자 측정용 (렌더링 시 임시 사용) */
 .char-measure {
     display: inline;

@@ -43,22 +43,6 @@
         }
         return !!(song.chorus && hasLineNotes(song.chorus.notes));
     }
-    // 음표별 syllable(스페인어 등)이 하나라도 있으면 그 곡은 "스페인어 병기 대상"이다.
-    // → 적용 대상 한정(요구 #2)이 데이터에 내재화되어, 별도 플래그가 필요 없다.
-    function hasSpanishSyllables(song) {
-        if (!song || typeof song !== "object") return false;
-        const hasLineSyllables = (slides) => Array.isArray(slides) && slides.some((slideNotes) => {
-            if (!slideNotes || typeof slideNotes !== "object") return false;
-            return Object.values(slideNotes).some((lineNotes) =>
-                Array.isArray(lineNotes) && lineNotes.some((note) =>
-                    note && typeof note.syllable === "string" && note.syllable.trim() !== "")
-            );
-        });
-        if (song.verses && typeof song.verses === "object") {
-            if (Object.values(song.verses).some((verse) => verse && hasLineSyllables(verse.notes))) return true;
-        }
-        return !!(song.chorus && hasLineSyllables(song.chorus.notes));
-    }
     function normalizeSearchText(value) {
         return String(value || "").normalize("NFC").toLowerCase()
             .replace(/<br\s*\/?>/gi, " ").replace(/\s+/g, " ").trim();
@@ -542,21 +526,6 @@
             this.dom.toggleSidebar.addEventListener("click", () => {
                 document.querySelector(".present-shell").classList.toggle("sidebar-collapsed");
             });
-
-            // 발표 영역 크기 변화(사이드바 토글·창 리사이즈·줌) 시 절수 뱃지 위치 재계산.
-            // 뱃지는 슬라이드 표시 시 1회만 절대좌표로 배치되므로, 레이아웃이 바뀌면 옛 위치에
-            // 남아 가사와 겹친다. 컨테이너 크기를 관찰해 그때마다 활성 슬라이드 뱃지를 다시 배치.
-            if (typeof ResizeObserver !== "undefined" && this.dom.presentationContainer) {
-                let badgeRaf = null;
-                const ro = new ResizeObserver(() => {
-                    if (badgeRaf) cancelAnimationFrame(badgeRaf);
-                    badgeRaf = requestAnimationFrame(() => {
-                        badgeRaf = null;
-                        this.repositionActiveVerseBadge();
-                    });
-                });
-                ro.observe(this.dom.presentationContainer);
-            }
 
             // 셋 제목 편집
             this.dom.setlistName.addEventListener("input", () => {
@@ -2288,7 +2257,6 @@
         buildSlidesForHymn(hymn) {
             const slides = [];
             const showNotes = hasRenderableNotes(hymn);
-            const songHasSpanish = hasSpanishSyllables(hymn);
             const isHymn = isHymnSong(hymn);
 
             // 영어 가사 4줄 → 2줄 (두 줄씩 한 줄로 합치기)
@@ -2332,7 +2300,6 @@
                             indexInSection: i,
                             korean: (verse.korean || [])[i] || "",
                             english: (verse.english || [])[i] || "",
-                            spanish: (verse.spanish || [])[i] || "",
                             notesData: showNotes && verse.notes && verse.notes[i] ? verse.notes[i] : null
                         });
                     }
@@ -2346,7 +2313,6 @@
                                 indexInSection: i,
                                 korean: chorus.korean[i] || "",
                                 english: (chorus.english || [])[i] || "",
-                                spanish: (chorus.spanish || [])[i] || "",
                                 notesData: showNotes && chorus.notes && chorus.notes[i] ? chorus.notes[i] : null
                             });
                         }
@@ -2386,13 +2352,12 @@
                                 <div class="lyrics-content ${notesClass}">
                                     ${verseBadgeHtml}
                                     <div class="lyrics-korean" data-has-notes="${!!ls.notesData}">${ls.korean.replace(/<br\/>/g, "<br>")}</div>
-                                    ${(!songHasSpanish && englishHtml) ? `<div class="lyrics-english">${englishHtml.replace(/<br\/>/g, "<br>")}</div>` : ""}
+                                    ${englishHtml ? `<div class="lyrics-english">${englishHtml.replace(/<br\/>/g, "<br>")}</div>` : ""}
                                 </div>
                             </div>
                         </div>
                     `,
                     notes: ls.notesData,
-                    spanish: ls.spanish,
                     timeSignature: hymn.timeSignature,
                     key: hymn.key
                 });
@@ -2440,7 +2405,7 @@
                 const data = this.slideData[index];
                 if (!data || !data.notes) return;
                 const koreanEl = slideEl.querySelector(".lyrics-korean");
-                if (koreanEl) notesEngine.addNotationToLyrics(koreanEl, data.notes, data.timeSignature, data.key, data.spanish);
+                if (koreanEl) notesEngine.addNotationToLyrics(koreanEl, data.notes, data.timeSignature, data.key);
             });
         }
 
@@ -2460,7 +2425,7 @@
                 if (koreanEl) {
                     requestAnimationFrame(() => {
                         const notesEngine = new NotesEngine(getNotesTheme());
-                        notesEngine.renderNotations(koreanEl, data.notes, data.key, data.spanish);
+                        notesEngine.renderNotations(koreanEl, data.notes, data.key);
                         this.positionVerseBadgeForSlide(this.allSlides[index]);
                     });
                 }
@@ -2494,13 +2459,6 @@
             badge.style.top = `${Math.max(0, top)}px`;
             badge.style.left = `${left}px`;
             badge.classList.add("is-positioned");
-        }
-
-        // 현재 활성 슬라이드의 절수 뱃지를 다시 배치 (레이아웃 변화 대응)
-        repositionActiveVerseBadge() {
-            if (!this.allSlides || this.allSlides.length === 0) return;
-            const slideEl = this.allSlides[this.currentGlobalIndex];
-            if (slideEl) this.positionVerseBadgeForSlide(slideEl);
         }
 
         nextSlide() {
