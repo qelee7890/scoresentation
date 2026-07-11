@@ -4,6 +4,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     // Hymns
     listHymns: () => ipcRenderer.invoke("hymns:list"),
     getHymn: (number) => ipcRenderer.invoke("hymns:get", number),
+    // Canonical (v3) dual-lyrics read path (SPEC-LYRICS-001; consumed by SPEC-002 viewer/editor)
+    getCanonicalHymn: (number) => ipcRenderer.invoke("hymns:get-canonical", number),
     saveHymn: (number, hymn) => ipcRenderer.invoke("hymns:save", number, hymn),
     deleteHymn: (number) => ipcRenderer.invoke("hymns:delete", number),
 

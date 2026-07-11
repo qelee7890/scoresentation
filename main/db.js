@@ -1,6 +1,22 @@
 import Database from "better-sqlite3";
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeDoc } from "./canonical-doc.js";
+
+// @MX:NOTE: [AUTO] v3 canonical overlay schema (SPEC-LYRICS-001). saved_hymns_v3 is
+// PHYSICALLY SEPARATE from the v1 saved_hymns table (rollback/coexist safe): existing
+// v1 read/write paths are untouched. Both baseline and user overlay use this same shape.
+const V3_SCHEMA_VERSION = 3;
+const SAVED_HYMNS_V3_DDL = `CREATE TABLE IF NOT EXISTS saved_hymns_v3 (
+    number TEXT PRIMARY KEY,
+    category TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    new_number TEXT NOT NULL DEFAULT '',
+    doc_json TEXT NOT NULL,
+    content_hash TEXT NOT NULL DEFAULT '',
+    schema_version INTEGER NOT NULL DEFAULT 3,
+    updated_at TEXT NOT NULL DEFAULT ''
+)`;
 
 function utcNowIso() {
     return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
@@ -30,11 +46,13 @@ function openReadonlyIfExists(dbPath) {
 export class HymnRepository {
     constructor(baselineDbPath, userDbPath) {
         fs.mkdirSync(path.dirname(userDbPath), { recursive: true });
+        this._userDbPath = userDbPath;
         this.userDb = new Database(userDbPath);
         this.userDb.pragma("journal_mode = WAL");
         this._initUserSchema();
 
         this.baselineDb = openReadonlyIfExists(baselineDbPath);
+        this._baselineHasV3 = false;
         if (this.baselineDb) this._verifyBaselineSchema();
     }
 
@@ -55,6 +73,29 @@ export class HymnRepository {
                 deleted_at TEXT NOT NULL
             );
         `);
+        this._migrateToV3();
+    }
+
+    // @MX:WARN: [AUTO] Forward v3 migration — runs at every startup against the user overlay.
+    // @MX:REASON: touches real user data on install; must stay forward-only, idempotent, and
+    // backup-first (research §8.5). Keyed on PRAGMA user_version so it applies exactly once.
+    _migrateToV3() {
+        const version = this.userDb.pragma("user_version", { simple: true });
+        if (version >= V3_SCHEMA_VERSION) return; // idempotent no-op once migrated
+
+        // Backup-first: only when the overlay already holds user data (never a fresh empty DB).
+        let hasData = false;
+        try { hasData = this.userDb.prepare("SELECT COUNT(*) AS c FROM saved_hymns").get().c > 0; } catch (_) { /* fresh */ }
+        if (hasData && this._userDbPath && fs.existsSync(this._userDbPath)) {
+            try {
+                this.userDb.pragma("wal_checkpoint(TRUNCATE)");
+                fs.copyFileSync(this._userDbPath, `${this._userDbPath}.bak.${Date.now()}`);
+            } catch (err) {
+                console.warn(`[v3-migrate] backup failed (continuing): ${err.message}`);
+            }
+        }
+        this.userDb.exec(SAVED_HYMNS_V3_DDL);
+        this.userDb.pragma(`user_version = ${V3_SCHEMA_VERSION}`);
     }
 
     _verifyBaselineSchema() {
@@ -63,7 +104,13 @@ export class HymnRepository {
         } catch (err) {
             console.warn(`[baseline] schema mismatch, ignoring: ${err.message}`);
             this.baselineDb = null;
+            return;
         }
+        // Baseline may or may not carry the v3 canonical table (added by the import tool).
+        try {
+            this.baselineDb.prepare("SELECT number FROM saved_hymns_v3 LIMIT 1").get();
+            this._baselineHasV3 = true;
+        } catch (_) { this._baselineHasV3 = false; }
     }
 
     _rowToItem(row) {
@@ -137,6 +184,37 @@ export class HymnRepository {
             if (baseRow) return this._rowToItem(baseRow);
         }
         return null;
+    }
+
+    // @MX:ANCHOR: [AUTO] Canonical (v3) read path — consumed by the hymns:get-canonical IPC
+    // and downstream viewer/editor (SPEC-002). Same precedence as getHymn: tombstone ->
+    // user overlay v3 -> baseline v3. Returns a normalized canonical doc, or null.
+    // @MX:REASON: public repository read boundary for the whole v3 data layer (fan_in grows
+    // across IPC handler + future viewer/editor/export consumers).
+    getCanonicalHymn(number) {
+        const tomb = this.userDb.prepare("SELECT 1 FROM user_tombstones WHERE number = ?").get(number);
+        if (tomb) return null;
+
+        const userRow = this._selectCanonical(this.userDb, number);
+        if (userRow) return this._rowToCanonical(userRow);
+
+        if (this.baselineDb && this._baselineHasV3) {
+            const baseRow = this._selectCanonical(this.baselineDb, number);
+            if (baseRow) return this._rowToCanonical(baseRow);
+        }
+        return null;
+    }
+
+    _selectCanonical(db, number) {
+        try {
+            return db.prepare("SELECT number, doc_json FROM saved_hymns_v3 WHERE number = ?").get(number);
+        } catch (_) {
+            return undefined; // table absent on this handle
+        }
+    }
+
+    _rowToCanonical(row) {
+        return normalizeDoc(JSON.parse(row.doc_json));
     }
 
     saveHymn(number, hymn) {

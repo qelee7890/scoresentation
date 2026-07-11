@@ -172,6 +172,14 @@ function registerHymnHandlers() {
         return { item };
     });
 
+    // Canonical (v3) dual-lyrics read path (SPEC-LYRICS-001). Read-only mirror of hymns:get;
+    // write/merge/export stays out of scope (SPEC-002 editor / SPEC-003 export).
+    ipcMain.handle("hymns:get-canonical", (_event, number) => {
+        const doc = hymnRepo.getCanonicalHymn(String(number));
+        if (!doc) return { error: "not found" };
+        return { doc };
+    });
+
     ipcMain.handle("hymns:save", (_event, number, hymn) => {
         const [item, isNew] = hymnRepo.saveHymn(String(number), hymn);
         // Notify all windows
