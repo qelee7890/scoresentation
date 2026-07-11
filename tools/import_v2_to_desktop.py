@@ -201,6 +201,100 @@ def es_gate_failures(number, doc, es_sources):
     return reasons
 
 
+# ── Legacy data cleanup (T-008) ──────────────────────────────────────────────
+
+DEFAULT_SETLIST_DBS = [
+    os.path.join(ROOT, "data", "setlists.db"),
+    os.path.expandvars(r"%APPDATA%/Scoresentation/data/setlists.db"),
+]
+
+
+def _line_ko(line):
+    return "".join((y.get("surface") or {}).get("ko") or "" for y in line.get("syllables", []))
+
+
+def strip_standalone_amen(doc):
+    """Adopt the v2 canonical for #204: drop any standalone chorus '아 멘' slide/line
+    (D8/GWT-C3). No-op on the pristine v2 corpus (which already omits it); defensive
+    against an amen leaking in from a v1 source. Returns the number of lines removed."""
+    removed = 0
+    for sec in doc.get("sections", []):
+        if sec.get("kind") != "chorus":
+            continue
+        kept = []
+        for ln in sec.get("lines", []):
+            if _line_ko(ln).replace(" ", "") == "아멘":
+                removed += 1
+                continue
+            kept.append(ln)
+        sec["lines"] = kept
+    return removed
+
+
+def load_v2_numbers(v2_path):
+    con = sqlite3.connect(f"file:{v2_path}?mode=ro", uri=True)
+    try:
+        return [r[0] for r in con.execute("SELECT number FROM saved_hymns_v2").fetchall()]
+    finally:
+        con.close()
+
+
+def find_duplicate_pairs(numbers, prefix="score-"):
+    """Detect ('score-X', 'X') duplicate pairs present in the corpus."""
+    present = set(map(str, numbers))
+    return [(n, n[len(prefix):]) for n in present if n.startswith(prefix) and n[len(prefix):] in present]
+
+
+def load_setlist_songids(setlist_paths=None):
+    """Every setlist item's payload.songId across the given DBs (read-only)."""
+    ids = set()
+    for p in (setlist_paths if setlist_paths is not None else DEFAULT_SETLIST_DBS):
+        if not p or not os.path.exists(p):
+            continue
+        con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+        try:
+            rows = con.execute("SELECT payload_json FROM setlist_items").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        finally:
+            con.close()
+        for (pj,) in rows:
+            try:
+                pl = json.loads(pj)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            sid = pl.get("songId")
+            if sid is not None and str(sid).strip():
+                ids.add(str(sid))
+    return ids
+
+
+def resolve_duplicate_to_drop(referenced_ids, pair, prefix="score-"):
+    """Pick which copy of a duplicate pair to drop: the setlist-unreferenced one;
+    when neither (or both) is referenced, default to dropping the 'score-' prefixed copy."""
+    prefixed, plain = pair
+    ref = [n for n in pair if n in referenced_ids]
+    if len(ref) == 1:
+        return plain if ref[0] == prefixed else prefixed
+    return prefixed
+
+
+def make_legacy_cleanup_hook(drop_numbers=(), amen_numbers=("204",)):
+    """transform_hook that drops the unreferenced duplicate copy and strips #204's amen slide.
+    Setlists are never modified (read-only reference only)."""
+    drop = set(map(str, drop_numbers))
+    amen = set(map(str, amen_numbers))
+
+    def hook(number, doc):
+        if str(number) in drop:
+            return None  # drop the unreferenced duplicate copy
+        if str(number) in amen:
+            strip_standalone_amen(doc)
+        return doc
+
+    return hook
+
+
 def load_v2_docs(v2_path):
     """Read (number, v2_doc) pairs from the v2 corpus, read-only."""
     con = sqlite3.connect(f"file:{v2_path}?mode=ro", uri=True)
@@ -343,8 +437,14 @@ def main(argv=None):
         print(f"(dry-run) {len(docs)} songs would be imported into {args.out} (--write to apply)")
         return 0
 
+    # Legacy cleanup: resolve the score-축복의 사람 / 축복의 사람 duplicate against setlist references.
+    referenced = load_setlist_songids()
+    pairs = find_duplicate_pairs(load_v2_numbers(args.v2))
+    drops = [resolve_duplicate_to_drop(referenced, p) for p in pairs]
+    cleanup_hook = make_legacy_cleanup_hook(drop_numbers=drops)
+
     try:
-        n = run_import(args.v2, args.out, backup=True, gates=True)
+        n = run_import(args.v2, args.out, backup=True, gates=True, transform_hook=cleanup_hook)
     except ImportGateError as err:
         print("ABORT — ES integrity gate failed; no output written. Failing songs:", file=sys.stderr)
         for number, reasons in sorted(err.failures.items()):
