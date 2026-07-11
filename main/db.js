@@ -72,8 +72,21 @@ export class HymnRepository {
                 number TEXT PRIMARY KEY,
                 deleted_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS app_meta (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
         `);
         this._migrateToV3();
+    }
+
+    // @MX:NOTE: [AUTO] app_meta holds v3 REVERSE migration keys (e.g. migration:v3_overlay_disposal).
+    // The pre-spanish base intentionally does NOT port origin/main's one-way _runOneTimeMigrations
+    // (forward "remove override lacking Spanish" keys); the v3 direction is baseline-succession-driven
+    // and applied by the approved offline tool tools/dispose_user_overlay.py (REQ-LYR-023).
+    getAppMeta(key) {
+        const row = this.userDb.prepare("SELECT value FROM app_meta WHERE key = ?").get(key);
+        return row ? row.value : null;
     }
 
     // @MX:WARN: [AUTO] Forward v3 migration — runs at every startup against the user overlay.
