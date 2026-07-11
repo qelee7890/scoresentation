@@ -234,20 +234,12 @@ html, body {
     visibility: visible;
 }
 
-/* 가사 영역 — 줄 안에서는 왼쪽 기준 정렬(짧은 줄의 오선지 앞 공백 제거, 멀티라인 일관),
- * 블록 전체는 슬라이드에서 가운데 정렬(fit-content + margin auto).
- * 음자리표가 음수 마진으로 왼쪽에 튀어나오므로 왼쪽 패딩으로 클립 방지. */
+/* 가사 영역 */
 .lyrics-content {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     gap: 20px;
-    padding-left: 120px;
-    width: fit-content;
-    max-width: 100%;
-    margin-left: auto;
-    margin-right: auto;
-    box-sizing: border-box;
 }
 
 /* 한글 가사 */

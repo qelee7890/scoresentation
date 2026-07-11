@@ -17,12 +17,11 @@
     font-display: swap;
 }
 
-/* 줄 컨테이너 - 오선지 + 가사. 각 줄을 왼쪽 기준으로 정렬(멀티라인 일관) — 음표↔가사는
- * 동일 좌표계라 정렬 유지되고, 음자리표(음수 마진)는 .lyrics-content 왼쪽 패딩으로 흡수됨. */
+/* 줄 컨테이너 - 오선지 + 가사 */
 .lyrics-line-with-notes {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
     margin-bottom: -30px;  /* 악보줄 사이 간격 축소 */
     overflow: visible;  /* 음표가 잘리지 않도록 */
     position: relative;
@@ -57,7 +56,7 @@
 /* 스페인어 줄 — 한글 줄 바로 아래, 단어별로 음표 구간 중앙에 배치 */
 .lyrics-line-syllable {
     position: relative;
-    align-self: flex-start; /* 한글/음표와 같은 왼쪽 기준 (center면 음표 폭 차이로 우측 시프트됨) */
+    align-self: center;     /* 한글 줄과 같은 기준으로 중앙 정렬 */
     height: 0.95em;         /* 자식이 absolute라 부모 높이 명시 */
     margin-top: 0.3em;
 }
@@ -66,12 +65,8 @@
  * (이 규칙이 .lyrics-line-syllable 안에서만 걸리면 폭 측정이 한글 크기로 잘못돼 한글이 과확장됨) */
 .syllable-line {
     white-space: nowrap;
-    /* 스페인어 전용 좁은 고딕(강세 글리프 일관 + 폭 절감 → 한글 과확장 완화).
-     * Windows 기본 제공 폰트. 측정용 임시 span에도 동일 적용되어야 정렬이 맞음. */
-    font-family: 'Arial Narrow', 'Bahnschrift', sans-serif;
-    font-weight: 700;              /* Arial Narrow Bold */
-    font-size: 0.80em;             /* 한글 대비 0.80 */
-    letter-spacing: 0;
+    font-size: 0.62em;             /* 한글 대비 축소(폭 절감) */
+    letter-spacing: -0.01em;
     line-height: 1;
     color: #000;
 }
