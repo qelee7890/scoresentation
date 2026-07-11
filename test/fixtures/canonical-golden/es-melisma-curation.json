@@ -1,0 +1,154 @@
+{
+ "name": "es-melisma-curation",
+ "contentHash": "sha256:8320b33c53637df70f57e8f9374cfc3db61949b4387ff67f3e76d219bd7f7f4a",
+ "doc": {
+  "schemaVersion": 3,
+  "rev": 1,
+  "id": "190",
+  "number": "190",
+  "newNumber": "254",
+  "title": "샘물과 같은 보혈은",
+  "composer": "L.Mason",
+  "category": "hymn",
+  "key": "3b",
+  "timeSignature": "4/4",
+  "sections": [
+   {
+    "kind": "verse",
+    "label": "1",
+    "altLanguages": {},
+    "slideBreaks": [
+     1
+    ],
+    "lines": [
+     {
+      "id": "s1.0",
+      "textOnly": false,
+      "slideIndex": 0,
+      "syllables": [
+       {
+        "id": "s1.0#0",
+        "surface": {
+         "ko": "샘",
+         "es": "Hay u",
+         "en": null
+        },
+        "wordBoundary": "start",
+        "leadSpace": false,
+        "melisma": true,
+        "wbEs": "mid",
+        "notes": [
+         {
+          "pitch": "C4",
+          "dur": "8",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": 0,
+          "fermata": false
+         },
+         {
+          "pitch": "E4",
+          "dur": "8",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": 0,
+          "fermata": false
+         }
+        ]
+       },
+       {
+        "id": "s1.0#1",
+        "surface": {
+         "ko": "물",
+         "es": "na",
+         "en": null
+        },
+        "wordBoundary": "end",
+        "leadSpace": false,
+        "melisma": false,
+        "wbEs": "end",
+        "koJoinPrev": true,
+        "notes": [
+         {
+          "pitch": "G4",
+          "dur": "q",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": null,
+          "fermata": false
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "s1.1",
+      "textOnly": false,
+      "slideIndex": 1,
+      "syllables": [
+       {
+        "id": "s1.1#0",
+        "surface": {
+         "ko": "",
+         "es": null,
+         "en": null
+        },
+        "wordBoundary": "continuation",
+        "leadSpace": false,
+        "melisma": true,
+        "continuation": true,
+        "koJoinPrev": true,
+        "notes": [
+         {
+          "pitch": "B4",
+          "dur": "q",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": null,
+          "fermata": false
+         }
+        ]
+       },
+       {
+        "id": "s1.1#1",
+        "surface": {
+         "ko": "라",
+         "es": "cir",
+         "en": null
+        },
+        "wordBoundary": "standalone",
+        "leadSpace": true,
+        "melisma": false,
+        "wbEs": "standalone",
+        "esJoinNext": true,
+        "koJoinNext": true,
+        "notes": [
+         {
+          "pitch": "A4",
+          "dur": "8",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": null,
+          "fermata": false
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "_provenance": {
+   "migratedFrom": "v2",
+   "sourceHash": null,
+   "migratedAt": null,
+   "warnings": [
+    {
+     "lineId": "s1.1",
+     "code": "CROSS_LINE_MELISMA",
+     "detail": "tail"
+    }
+   ]
+  }
+ }
+}

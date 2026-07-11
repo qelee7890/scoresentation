@@ -1,0 +1,63 @@
+{
+ "name": "simple-ko",
+ "contentHash": "sha256:f713125c93d70c3a63fc539029cdf6b6b846b5d5302233beafc529f706a740d6",
+ "doc": {
+  "schemaVersion": 3,
+  "rev": 7,
+  "updatedAt": "2026-07-11T00:00:00Z",
+  "id": "495",
+  "number": "495",
+  "newNumber": "438",
+  "title": "내 영혼이 은총 입어",
+  "composer": "",
+  "category": "hymn",
+  "key": "4b",
+  "timeSignature": "3/4",
+  "tempo": "♩=92",
+  "sections": [
+   {
+    "kind": "verse",
+    "label": "1",
+    "altLanguages": {},
+    "lines": [
+     {
+      "id": "s1.0",
+      "textOnly": false,
+      "slideIndex": 0,
+      "syllables": [
+       {
+        "id": "s1.0#0",
+        "surface": {
+         "ko": "내",
+         "es": "Fue",
+         "en": null
+        },
+        "wordBoundary": "standalone",
+        "leadSpace": false,
+        "melisma": false,
+        "wbEs": "mid",
+        "notes": [
+         {
+          "pitch": "E4",
+          "dur": "8",
+          "dotted": false,
+          "accidental": null,
+          "beamGroup": null,
+          "fermata": false
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "slideBreaks": []
+   }
+  ],
+  "_provenance": {
+   "migratedFrom": "v2",
+   "sourceHash": "sha256:should-be-ignored",
+   "migratedAt": "2026-07-03T00:00:00Z",
+   "warnings": []
+  }
+ }
+}
