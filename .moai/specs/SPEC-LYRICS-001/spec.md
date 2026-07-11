@@ -1,9 +1,9 @@
 ---
 id: SPEC-LYRICS-001
-version: 0.1.1
+version: 0.1.2
 status: draft
 created: 2026-07-11
-updated: 2026-07-11
+updated: 2026-07-12
 author: qelee7890
 priority: high
 issue_number: 1
@@ -13,6 +13,7 @@ issue_number: 1
 
 ## HISTORY
 
+- **v0.1.2** (2026-07-12): **GWT-B1 2단계 수치 명확화 + baseline 반영.** 수입은 **원시(정리 전) 573곡/2,330섹션/7,433줄**을 처리하고, T-008 레거시 정리(미참조 중복 `score-축복의 사람` 폐기)를 거친 **정리 후 baseline 최종은 572곡/2,328섹션/7,429줄**(원시 -1곡·-2섹션[verse+빈 후렴]·-4줄)임을 명시. 원장 초기화도 572곡. 실 repo baseline `data/scoresentation.db`에 `saved_hymns_v3`(572)+`sync_ledger`(572, rev=1) 반영(백업 선행·WAL 체크포인트·v1 `saved_hymns` 560행 무변경). 요구 실체 불변.
 - **v0.1.1** (2026-07-11): **감사 minor 6건 반영**(plan-auditor iteration 1, PASS 0.90). ① REQ-LYR-023 (Unwanted)→(Ubiquitous, 부정형) 재분류 + EARS 유형 커버리지 표 갱신 ② REQ-LYR-040 `[EXISTING/MODIFY]`→`[EXISTING]` ③ REQ-LYR-012 범위 밖 '수출' 언급 제거(SPEC-003 이관 명시) ④ REQ-LYR-031 읽기 프리미티브 3종 구체 열거 ⑤ REQ-LYR-011 트리거를 곡 단위 이벤트로 명확화 ⑥ `sys.exit(1)` → "0이 아닌 종료 코드", `payload.songId` 표현을 데이터 계약 참조로 재서술. 요구 실체·모듈/REQ 수(5모듈·20건) 불변.
 - **v0.1.0** (2026-07-11): 최초 작성. 게이트 확정(plan.md v0.2.0, 2026-07-11)을 반영한 M1 "데이터 기반" 요구명세. 요구 모듈 5개(RM-A~RM-E), EARS 요구 20건(REQ-LYR-001~043), Exclusions 7건. 뷰어·편집기(SPEC-002)·수출 실행(SPEC-003)은 범위 밖.
 
@@ -58,8 +59,8 @@ DELTA 표기: `[EXISTING]`(불변·characterization) · `[MODIFY]` · `[NEW]` ·
 
 ### RM-B — v2→데스크톱 수입 파이프라인
 
-- **REQ-LYR-010** [NEW] (Event-driven): **When** 수입 도구(`[S]/tools/import_v2_to_desktop.py`)가 `[M]/data/scoresentation_v2.db`(read-only, `mode=ro`)에 대해 실행되면, 시스템은 573곡 전부의 캐노니컬 문서를 데스크톱 baseline에 Python sqlite3로 수입한다. (§3.1, §3.6)
-- **REQ-LYR-011** [NEW] (Event-driven): **When** 수입 파이프라인이 각 곡을 처리할 때, 시스템은 line id 산술(`s{sid}.{n}` 누적 줄수 `C[]`)로 그 곡의 슬라이드 그룹을 백필하며, 전체 573곡/2,330섹션/7,433줄에서 **결번 0**을 보장한다. (§8.3, D2 확정)
+- **REQ-LYR-010** [NEW] (Event-driven): **When** 수입 도구(`[S]/tools/import_v2_to_desktop.py`)가 `[M]/data/scoresentation_v2.db`(read-only, `mode=ro`)에 대해 실행되면, 시스템은 **원시(정리 전) 573곡** 전부의 캐노니컬 문서를 데스크톱 baseline에 Python sqlite3로 수입하며, T-008 레거시 정리 적용 시 미참조 중복 1곡(`score-축복의 사람`)을 폐기해 **정리 후 baseline 최종은 572곡**이다. (§3.1, §3.6)
+- **REQ-LYR-011** [NEW] (Event-driven): **When** 수입 파이프라인이 각 곡을 처리할 때, 시스템은 line id 산술(`s{sid}.{n}` 누적 줄수 `C[]`)로 그 곡의 슬라이드 그룹을 백필하며 **결번 0**을 보장한다 — **원시(정리 전) 573곡/2,330섹션/7,433줄**, **정리 후 baseline 최종 572곡/2,328섹션/7,429줄**(폐기된 중복 1곡 = -2섹션[verse+빈 후렴]·-4줄). (§8.3, D2 확정)
 - **REQ-LYR-012** [NEW] (Unwanted): **If** 한 곡의 ES QC 게이트(KO 글리프==음표수 / ES letter-only 재조립==원문 / 공백 포함 `wbEs` 그룹 대조) 중 하나라도 실패하면, **then** 시스템은 **수입을 0이 아닌(비정상) 종료 코드로 중단**하고 실패 곡을 보고하며 손상 데이터를 산출하지 않는다. (동일 QC 게이트의 수출 적용은 SPEC-003으로 이관) (§3.7)
 - **REQ-LYR-013** [NEW] (State-driven): **While** 이미 수입된 코퍼스에 수입을 재실행하는 동안, 시스템은 **멱등 upsert**로 동일한 baseline을 산출하며 행을 중복 생성하지 않는다. (§3.6)
 

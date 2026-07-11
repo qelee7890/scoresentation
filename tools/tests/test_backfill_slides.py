@@ -19,6 +19,7 @@ import backfill_slidegroups as bf  # noqa: E402
 import import_v2_to_desktop as imp  # noqa: E402
 
 REAL_V2 = r"C:/Users/qelee/scoresentation-mobile/data/scoresentation_v2.db"
+JSON_FORMAT2 = r"C:/Users/qelee/praise-spanish/docs/json-format2"
 
 
 class BackfillArithmeticTest(unittest.TestCase):
@@ -88,6 +89,23 @@ class BackfillCorpusTest(unittest.TestCase):
         hashes2 = dict(con.execute("SELECT number, content_hash FROM saved_hymns_v3").fetchall())
         con.close()
         self.assertEqual(hashes1, hashes2)
+
+    @unittest.skipUnless(os.path.isdir(JSON_FORMAT2), "json-format2 sources not present")
+    def test_production_pipeline_final_counts_after_cleanup(self):
+        # End-to-end PRODUCTION path (gates + T-008 cleanup, then backfill): the post-cleanup
+        # baseline is 572 songs / 2,328 sections / 7,429 lines — one fewer than the raw import
+        # (573/2,330/7,433) because the unreferenced score-축복의 사람 duplicate is dropped
+        # (2 sections: verse + empty chorus; 4 lines). This is the number the shipped baseline carries.
+        out = os.path.join(self.tmp, "prod.db")
+        referenced = set()  # hermetic: no setlist references -> default drops the score- prefixed copy
+        pairs = imp.find_duplicate_pairs(imp.load_v2_numbers(REAL_V2))
+        drops = [imp.resolve_duplicate_to_drop(referenced, p) for p in pairs]
+        hook = imp.make_legacy_cleanup_hook(drop_numbers=drops)
+        n = imp.run_import(REAL_V2, out, backup=False, gates=True, transform_hook=hook)
+        self.assertEqual(n, 572, "gates+cleanup import writes 572 songs (573 raw - 1 dropped duplicate)")
+        stats = bf.run_backfill(out, self.sources, backup=False)
+        self.assertEqual((stats["songs"], stats["sections"], stats["lines"], stats["gap_sections"]),
+                         (572, 2328, 7429, 0))
 
     def test_204_chorus_single_slide_no_amen(self):
         # GWT-C3 tie-in: #204's v2 chorus has 2 lines and maps to a single slide with no

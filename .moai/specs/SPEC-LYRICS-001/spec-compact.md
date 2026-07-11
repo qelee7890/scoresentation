@@ -23,8 +23,8 @@ DELTA: `[EXISTING]`·`[MODIFY]`·`[NEW]`·`[REMOVE]`.
 - **REQ-LYR-005** [NEW] (Ubiquitous): 렌더 안 되는 값(`tempo`/`newTitle`/`beamGroup`/`melisma`/`continuation`/`_provenance`)도 무손실 보존한다.
 
 ### RM-B v2→데스크톱 수입
-- **REQ-LYR-010** [NEW] (Event-driven): When 수입 도구가 v2 DB(read-only)에 실행되면, 573곡 캐노니컬 문서를 데스크톱 baseline에 Python sqlite3로 수입한다.
-- **REQ-LYR-011** [NEW] (Event-driven): When 수입 파이프라인이 각 곡을 처리할 때, line id 산술로 그 곡의 슬라이드 그룹을 백필하며 전체 573곡에서 결번 0을 보장한다.
+- **REQ-LYR-010** [NEW] (Event-driven): When 수입 도구가 v2 DB(read-only)에 실행되면, 원시 573곡 캐노니컬 문서를 데스크톱 baseline에 Python sqlite3로 수입한다(T-008 정리로 미참조 중복 1곡 폐기 → 정리 후 baseline 572곡).
+- **REQ-LYR-011** [NEW] (Event-driven): When 수입 파이프라인이 각 곡을 처리할 때, line id 산술로 그 곡의 슬라이드 그룹을 백필하며 결번 0을 보장한다(원시 573/2,330/7,433 · 정리 후 572/2,328/7,429).
 - **REQ-LYR-012** [NEW] (Unwanted): If ES QC 게이트(글리프==음표 / letter-only 재조립 / 공백 wbEs 그룹) 실패 시, then 수입을 0이 아닌 종료 코드로 중단하고 실패 곡을 보고한다(수출 적용은 SPEC-003).
 - **REQ-LYR-013** [NEW] (State-driven): While 수입 재실행 동안, 멱등 upsert로 동일 baseline을 산출하고 중복 행을 만들지 않는다.
 
@@ -52,7 +52,7 @@ DELTA: `[EXISTING]`·`[MODIFY]`·`[NEW]`·`[REMOVE]`.
 - **GWT-A1** Given v2 곡 / When 수입 후 `saved_hymns_v3` 재조회 / Then 음절 1급·`surface{ko,es,en}`·무손실 메타, v1과 별도 테이블 저장.
 - **GWT-A2** Given `koJoinPrev` 보유 곡 / When 조회 / Then 큐레이션 필드·슬라이드 그룹·음절 ID 1급 유지.
 - **GWT-A3** Given 190 "Hay u"(2단어 1슬롯) / When 조회 / Then `surface.es` N글자·`wbEs` KO 독립 기록.
-- **GWT-B1** Given v2 DB(573) / When 수입 / Then 573곡 수입 + 슬라이드 백필 결번 0(573/2,330/7,433).
+- **GWT-B1** Given v2 DB(573) / When 수입+정리 / Then **원시** 573곡 수입·백필 결번 0(573/2,330/7,433), **정리 후 baseline 최종** 572곡(572/2,328/7,429; 미참조 중복 `score-축복의 사람` 폐기分).
 - **GWT-B2** Given 수입 완료 baseline / When 재실행 / Then 행수·해시 동일, 중복 0(멱등).
 - **GWT-B3** Given ES 결함 주입 / When 수입 / Then 손상 미산출, 0이 아닌(비정상) 종료 코드로 중단 + 실패 곡 보고.
 - **GWT-C1** Given 15 중복행 + baseline 승계 입증 / When 처분 / Then 15행 폐기·baseline에서 조회, 미입증 행 유지.
@@ -61,7 +61,7 @@ DELTA: `[EXISTING]`·`[MODIFY]`·`[NEW]`·`[REMOVE]`.
 - **GWT-C4** Given 중복쌍 + 셋리스트 참조 확인 / When 해소 / Then 미참조본 폐기, 셋리스트 무손상.
 - **GWT-C5** Given 마이그레이션 완료 / When 재기동 / Then 무변경(멱등), 단방향 로직 미적용, `app_meta` v3 키만.
 - **GWT-D1** Given 동일 콘텐츠 / When 해시 2회 계산 / Then `contentHash` 동일(v2 값 미의존).
-- **GWT-D2** Given 573 원장 초기화 / When 실행 / Then 병합·수출 0(SPEC-003 이관).
+- **GWT-D2** Given 정리 후 baseline 572곡 원장 초기화 / When 실행 / Then 병합·수출 0(SPEC-003 이관).
 - **GWT-E1** Given Python 편집 후 / When `wal_checkpoint(TRUNCATE)` / Then 미체크포인트 변경 0, DB 자립.
 - **GWT-E2** Given baseline `query_only=ON` / When 쓰기 시도 / Then 거부, 쓰기는 overlay만.
 - **GWT-E3** Given 글리프!=음표 줄 / When 수입 / Then `GLYPH_NOTE_MISMATCH` 경고 + 마지막 음절 흡수·보존, 결함 마커 유지.
