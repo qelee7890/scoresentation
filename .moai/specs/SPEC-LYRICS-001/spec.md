@@ -6,7 +6,7 @@ created: 2026-07-11
 updated: 2026-07-11
 author: qelee7890
 priority: high
-issue_number: 0
+issue_number: 1
 ---
 
 # SPEC-LYRICS-001 — 한-외국어 이중 가사 캐노니컬 데이터 기반 (M1)
