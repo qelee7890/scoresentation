@@ -209,6 +209,80 @@ test("validateDoc rejects wrong schema version, missing number, and malformed sy
     assert.ok(res.errors.some((e) => /surface/.test(e)));
 });
 
+// ── validateDoc branch coverage (FIX 5) ─────────────────────────────────────
+
+test("validateDoc rejects a non-object doc", () => {
+    for (const bad of [null, undefined, 42, "x", []]) {
+        const res = validateDoc(bad);
+        assert.equal(res.valid, false);
+        assert.ok(res.errors.length >= 1);
+    }
+});
+
+test("validateDoc rejects non-array sections and stops early", () => {
+    const res = validateDoc({ schemaVersion: 3, number: "1", category: "hymn", sections: {} });
+    assert.equal(res.valid, false);
+    assert.ok(res.errors.some((e) => /sections must be an array/.test(e)));
+});
+
+test("validateDoc flags malformed section kind, non-string label, and non-array lines", () => {
+    const res = validateDoc({
+        schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "bridge", label: 7, lines: "nope" }],
+    });
+    assert.equal(res.valid, false);
+    assert.ok(res.errors.some((e) => /kind invalid/.test(e)));
+    assert.ok(res.errors.some((e) => /label must be a string/.test(e)));
+    assert.ok(res.errors.some((e) => /lines must be an array/.test(e)));
+});
+
+test("validateDoc flags missing line id and non-array syllables", () => {
+    const res = validateDoc({
+        schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "verse", label: "1", lines: [{ id: "", syllables: {} }] }],
+    });
+    assert.equal(res.valid, false);
+    assert.ok(res.errors.some((e) => /id must be a non-empty string/.test(e)));
+    assert.ok(res.errors.some((e) => /syllables must be an array/.test(e)));
+});
+
+test("validateDoc flags surface variants: ko not string, es/en missing, notes non-array, bad note dur", () => {
+    const res = validateDoc({
+        schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "verse", label: "1", lines: [{ id: "s1.0", syllables: [
+            { surface: { ko: 5 }, notes: "x" },
+            { surface: { ko: "주", es: "x", en: null }, notes: [{ pitch: "E4", dur: 8 }] },
+        ] }] }],
+    });
+    assert.equal(res.valid, false);
+    assert.ok(res.errors.some((e) => /surface\.ko must be a string/.test(e)));
+    assert.ok(res.errors.some((e) => /surface\.es missing/.test(e)));
+    assert.ok(res.errors.some((e) => /surface\.en missing/.test(e)));
+    assert.ok(res.errors.some((e) => /notes must be an array/.test(e)));
+    assert.ok(res.errors.some((e) => /dur must be a string/.test(e)));
+});
+
+test("validateDoc accepts structurally-empty sections/lines/syllables", () => {
+    // empty sections[] is valid; empty lines[] is valid; empty syllables[]/notes[] are valid
+    assert.equal(validateDoc({ schemaVersion: 3, number: "1", category: "hymn", sections: [] }).valid, true);
+    assert.equal(validateDoc({ schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "verse", label: "1", lines: [] }] }).valid, true);
+    const emptySyl = validateDoc({ schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "verse", label: "1", lines: [{ id: "s1.0", syllables: [] }] }] });
+    assert.equal(emptySyl.valid, true, JSON.stringify(emptySyl.errors));
+    const emptyNotes = validateDoc({ schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "chorus", label: "후렴", lines: [{ id: "s1.0",
+            syllables: [{ surface: { ko: "", es: null, en: null }, notes: [] }] }] }] });
+    assert.equal(emptyNotes.valid, true, JSON.stringify(emptyNotes.errors));
+});
+
+test("validateDoc accepts a note whose pitch is the empty string (rest-like)", () => {
+    const res = validateDoc({ schemaVersion: 3, number: "1", category: "hymn",
+        sections: [{ kind: "verse", label: "1", lines: [{ id: "s1.0",
+            syllables: [{ surface: { ko: "주", es: null, en: null }, notes: [{ pitch: "", dur: "8" }] }] }] }] });
+    assert.equal(res.valid, true, JSON.stringify(res.errors));
+});
+
 test("normalizeDoc fills structural defaults without dropping data", () => {
     const minimal = {
         number: "1",
@@ -224,4 +298,44 @@ test("normalizeDoc fills structural defaults without dropping data", () => {
     assert.equal(syl.surface.en, null);
     assert.equal(syl.surface.ko, "주");
     assert.ok(Array.isArray(doc._provenance.warnings));
+});
+
+test("normalizeDoc fills note/syllable/section/line defaults for bare inputs (nullish branches)", () => {
+    // Bare note, bare syllable, non-array notes, non-object surface, missing sections/lines/provenance.
+    const doc = normalizeDoc({
+        id: "song", // number absent -> derived from id; category derived as non-numeric -> "song"
+        sections: [
+            { lines: [ // section kind/label/altLanguages absent
+                { syllables: [ // line id/textOnly absent
+                    { notes: [{ pitch: "C4", dur: "4" }] }, // bare note: dotted/accidental/beamGroup/fermata defaulted; surface absent
+                    { surface: 5, notes: "not-an-array" }, // non-object surface + non-array notes
+                ] },
+            ] },
+        ],
+    });
+    assert.equal(doc.number, "song");
+    assert.equal(doc.category, "song");
+    const note = doc.sections[0].lines[0].syllables[0].notes[0];
+    assert.deepEqual(note, { pitch: "C4", dur: "4", dotted: false, accidental: null, beamGroup: null, fermata: false });
+    const s0 = doc.sections[0].lines[0].syllables[0];
+    assert.equal(s0.wordBoundary, "standalone");
+    assert.equal(s0.leadSpace, false);
+    assert.equal(s0.melisma, false);
+    assert.equal(s0.surface.ko, ""); // surface absent -> defaults
+    const s1 = doc.sections[0].lines[0].syllables[1];
+    assert.deepEqual(s1.notes, []); // non-array notes -> []
+    assert.equal(s1.surface.ko, ""); // non-object surface -> defaults
+    assert.equal(doc.sections[0].kind, "verse");
+    assert.equal(doc.sections[0].label, "");
+    assert.deepEqual(doc.sections[0].altLanguages, {});
+    assert.equal(doc.sections[0].lines[0].textOnly, false);
+    assert.equal(doc.sections[0].lines[0].id, "");
+});
+
+test("normalizeDoc handles a completely empty input object", () => {
+    const doc = normalizeDoc({});
+    assert.equal(doc.schemaVersion, SCHEMA_VERSION);
+    assert.deepEqual(doc.sections, []);
+    assert.equal(doc.category, "song"); // empty number -> non-numeric -> song
+    assert.deepEqual(doc._provenance.warnings, []);
 });
