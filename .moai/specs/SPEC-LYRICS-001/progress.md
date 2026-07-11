@@ -13,3 +13,4 @@
 - Phase 1.7 note: file stubs delegated to manager-tdd first action (LSP baseline via moai-lsp unavailable in shell — using test-suite green state as baseline)
 - Phase 1.8 complete: MX scan — 0 existing @MX tags in codebase (greenfield MX context; tags added for new code only per mx_plan)
 - T-002 done: 11 node:test pass (canonical-doc 9 + purity-guard 2), RED (missing module import) → GREEN. files: main/canonical-doc.js, test/canonical-doc.test.js, test/purity-guard.test.js. GWT-A1/A2/A3 model shape demonstrated on hand-built fixtures.
+- T-001 done: Electron characterization gate GREEN (exit 0); inverted probe confirms assertions bite (exit 1). Locks RM-E [EXISTING]: getHymn precedence (tombstone→user→baseline), saveHymn overlay-only write (baseline byte-unchanged), isNew broadcast semantics, baseline readonly+query_only rejects writes (GWT-E2). files: tools/char-existing-overlay.cjs. db.js unmodified.
