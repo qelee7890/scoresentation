@@ -45,9 +45,6 @@ docs/
 # DB backups
 *.db.bak.*
 
-# Local-only secrets (GitHub token for publish; deleted after use)
-gh.txt
-
 # Icon build artifacts / reference sources (commit only music_presenter_icon.ico)
 build/icon.ico
 build/icon.svg
