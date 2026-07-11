@@ -30,3 +30,11 @@
 - FIX 4 [Medium] done: coverage 7.15.0 installed (--user, NOT a project dep). Python branch coverage (SPEC tools): canonical_doc 100%, init_sync_ledger 97%, backfill_slidegroups 94%, import_v2_to_desktop 89%, dispose_user_overlay 88%, TOTAL 92% lines. Added CLI/main + D9-fallback + edge branch tests (all 5 tools ≥85% lines). Python suite 58 pass.
 - FIX 5 [Low] done: canonical-doc.js validateDoc + normalize branch tests → canonical-doc.js branch 60.18%→85.27% (line 100%, funcs 100%), aggregate pure-module branch 71.84%→89.10%. node suite 26 pass.
 - FINAL after fixes: node 26 pass, python 58 pass, 3 Electron gates exit 0. Coverage: pure JS 100% line/89.10% branch; Python SPEC tools 92% line.
+
+## Quality & completion (2026-07-12)
+- Phase 2.5: manager-quality TRUST 5 = PASS (5/5 pillars, MX violations 0, 1 suggestion: db.js future split)
+- Phase 2.8a iteration 1: evaluator-active = FAIL (baseline v3 unpopulated; final-count untested; GWT-C1 cascade; py coverage unmeasured; validateDoc branch 60%) → fix cycle 1 above
+- Phase 2.8a iteration 2: evaluator-active = PASS (all 5 findings independently re-verified resolved; 16/16 GWT confirmed; regression sweep green; non-blocking: ledger.js branch 76.47%, .bak files gitignored)
+- Phase 2.9: MX tags verified (ANCHOR/WARN/NOTE, violations 0)
+- Phase 3: 16 commits pushed to origin/feature/SPEC-LYRICS-001-multilang-lyrics (5045bf2..cb72912)
+- DEFERRED (user approval pending): real-[U] user-overlay disposal execution (dry-run verified drop=15/promote=7/retain=0)
