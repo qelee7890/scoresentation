@@ -9,7 +9,7 @@ NWC 파일의 멜로디 음표를 hymns.json의 notes 포맷으로 변환한다.
 변환 규칙:
 - NWC 소프라노 멜로디를 hymns.json의 가사 슬라이드/줄에 1:1 매핑
 - 1절 + 후렴의 멜로디가 기준, 2절 이후는 절 부분만 재사용
-- NWC pitch(표준)를 프로젝트 v2 체계(한 단계 낮춤)로 변환
+- pitch는 표준 음명 문자열 그대로 보존 (D5: 4-코퍼스 교차 대조로 변환 불요 확인)
 - 기존 hymns.json 필드는 모두 보존
 """
 
@@ -20,20 +20,6 @@ import subprocess
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
-
-# ── pitch v2 변환 ────────────────────────────────────
-
-V2_SHIFT = {'C': ('B', -1), 'D': ('C', 0), 'E': ('D', 0), 'F': ('E', 0),
-            'G': ('F', 0), 'A': ('G', 0), 'B': ('A', 0)}
-
-
-def to_v2_pitch(standard_pitch_str):
-    """'E4' → 'D4' (v2 체계)"""
-    name = standard_pitch_str[:-1]
-    octave = int(standard_pitch_str[-1])
-    new_name, oct_delta = V2_SHIFT[name]
-    return f'{new_name}{octave + oct_delta}'
-
 
 # ── NWC bridge (Node.js nwc-viewer 호출) ─────────────
 
@@ -149,8 +135,6 @@ def convert_hymn(hymn_data, nwc_file_path):
     # 후렴에 notes 추가
     if chorus_melody and chorus_slide_counts:
         chorus['notes'] = map_melody_to_slides(chorus_melody, chorus_slide_counts)
-
-    hymn_data['pitchLabelVersion'] = 2
 
     return hymn_data, f'OK (melody={len(melody)}, verse={verse_total}, chorus={chorus_total})'
 

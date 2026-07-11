@@ -13,7 +13,10 @@
     "build-icon": "node tools/build-icon.mjs",
     "publish": "npm run rebuild && npm run verify-native && electron-builder --win --publish always",
     "server": "python tools/server.py",
-    "sync-baseline": "python tools/sync-to-baseline.py"
+    "sync-baseline": "python tools/sync-to-baseline.py",
+    "test": "node --test test/*.test.js",
+    "test:py": "py -3 -m unittest discover -s tools/tests -p \"test_*.py\"",
+    "test:electron": "electron tools/char-existing-overlay.cjs && electron tools/check-canonical-schema.cjs && electron tools/check-overlay-disposal.cjs"
   },
   "build": {
     "appId": "com.scoresentation.app",
