@@ -3,6 +3,7 @@
 Full-corpus determinism (0 gaps across 573/2,330/7,433) plus focused C[] arithmetic
 unit tests. Reads real v2 + v1 sources READ-ONLY; all writes go to a temp baseline.
 """
+import glob
 import json
 import os
 import shutil
@@ -43,6 +44,63 @@ class BackfillArithmeticTest(unittest.TestCase):
         slide_of, breaks = bf._assign_from_counts([0, 1], [2])
         self.assertEqual(slide_of, {0: 0, 1: 0})
         self.assertEqual(breaks, [])
+
+
+class BackfillEdgeCaseTest(unittest.TestCase):
+    """Hermetic edge/CLI branches not exercised by the real corpus (no v2 needed)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="sc-bfe-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_default_fallback_when_no_source_matches(self):
+        # D9 default (2 lines/slide) fires when no v1 source matches — counted as a gap.
+        doc = {"number": "zzz", "sections": [{"kind": "verse", "label": "1", "lines": [
+            {"id": "s1.0", "syllables": []}, {"id": "s1.1", "syllables": []}, {"id": "s1.2", "syllables": []}]}]}
+        s, l, g = bf.backfill_doc(doc, [])
+        self.assertEqual((s, l, g), (1, 3, 1))
+        self.assertEqual([ln["slideIndex"] for ln in doc["sections"][0]["lines"]], [0, 0, 1])
+        self.assertEqual(doc["sections"][0]["slideBreaks"], [2])
+
+    def test_malformed_line_id_is_a_gap(self):
+        doc = {"number": "z", "sections": [{"kind": "verse", "label": "1", "lines": [{"id": "BAD", "syllables": []}]}]}
+        _s, _l, g = bf.backfill_doc(doc, [])
+        self.assertEqual(g, 1)
+
+    def test_source_lookup_edge_cases(self):
+        self.assertIsNone(bf.section_korean(None, "verse", "1"))
+        self.assertIsNone(bf.section_korean({"verses": {}}, "verse", "1"))
+        self.assertIsNone(bf.section_korean({"chorus": "x"}, "chorus", "후렴"))
+        self.assertEqual(bf.load_v1_db("does-not-exist.db"), {})
+        self.assertEqual(bf.load_json_format2(os.path.join(self.tmp, "nope")), {})
+
+    def test_br_line_count_edges(self):
+        self.assertEqual(bf.br_line_count(None), 0)            # None -> 0
+        self.assertEqual(bf.br_line_count("   "), 0)           # whitespace only -> strip empty -> 0
+        self.assertEqual(bf.br_line_count("<br/>"), 1)         # non-empty but unsplittable -> defensive 1
+
+    def _tiny_baseline(self):
+        path = os.path.join(self.tmp, "b.db")
+        con = sqlite3.connect(path)
+        con.execute(bf.SAVED_HYMNS_V3_DDL if hasattr(bf, "SAVED_HYMNS_V3_DDL") else
+                    "CREATE TABLE saved_hymns_v3 (number TEXT PRIMARY KEY, doc_json TEXT NOT NULL, content_hash TEXT DEFAULT '')")
+        doc = {"number": "1", "sections": [{"kind": "verse", "label": "1", "lines": [
+            {"id": "s1.0", "syllables": []}, {"id": "s1.1", "syllables": []}]}]}
+        con.execute("INSERT INTO saved_hymns_v3 (number, doc_json) VALUES ('1', ?)", (json.dumps(doc, ensure_ascii=False),))
+        con.commit()
+        con.close()
+        return path
+
+    def test_main_dry_run_and_write(self):
+        baseline = self._tiny_baseline()
+        nope = os.path.join(self.tmp, "nope")
+        rc = bf.main(["--baseline", baseline, "--json-format2", nope, "--user-db", "does-not-exist.db"])
+        self.assertEqual(rc, 0)  # dry-run report path
+        rc = bf.main(["--baseline", baseline, "--json-format2", nope, "--user-db", "does-not-exist.db", "--write"])
+        self.assertEqual(rc, 0)  # write path (backup + checkpoint)
+        self.assertTrue(glob.glob(baseline + ".bak.*"), "run_backfill --write creates a backup")
 
 
 @unittest.skipUnless(os.path.exists(REAL_V2), "real v2 corpus not present")

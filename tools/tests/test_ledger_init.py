@@ -109,6 +109,19 @@ class LedgerInitTest(unittest.TestCase):
         for forbidden in ("merge", "reconcile", "three_way_merge", "export", "export_to_koscriber", "apply"):
             self.assertFalse(hasattr(led, forbidden), f"{forbidden} must not exist in the foundation ledger tool")
 
+    def test_main_missing_baseline_returns_2(self):
+        self.assertEqual(led.main(["--baseline", os.path.join(self.tmp, "nope.db")]), 2)
+
+    def test_main_dry_run_returns_0(self):
+        self.assertEqual(led.main(["--baseline", self.baseline]), 0)
+
+    def test_main_write_creates_backup_and_ledger(self):
+        # exercises main() --write + the backup-first branch (backup=True -> .bak created)
+        self.assertEqual(led.main(["--baseline", self.baseline, "--write"]), 0)
+        import glob
+        self.assertTrue(glob.glob(self.baseline + ".bak.*"), "init --write creates a backup")
+        self.assertEqual(len(self._ledger()), self.n)
+
 
 if __name__ == "__main__":
     unittest.main()
