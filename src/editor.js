@@ -12,6 +12,36 @@
         { label: "1분", value: "w" }
     ];
 
+    const AUTO_BEAM_STORAGE_KEY = "scoresentation.editor.autoBeam";
+
+    function readAutoBeamPreference() {
+        try {
+            // 기본값 켜짐. 사용자가 명시적으로 끈 경우에만 꺼진다.
+            return window.localStorage.getItem(AUTO_BEAM_STORAGE_KEY) !== "off";
+        } catch (_) {
+            return true;
+        }
+    }
+
+    function writeAutoBeamPreference(enabled) {
+        try {
+            window.localStorage.setItem(AUTO_BEAM_STORAGE_KEY, enabled ? "on" : "off");
+        } catch (_) { /* 저장 실패는 무시 (세션 내에서는 동작) */ }
+    }
+
+    // 자동 연결선은 "한 박" 단위로 끊는다. 16분음표를 1로 센다 (4분음표 한 박 = 4).
+    const BEAT_UNITS = 4;
+    const UNIT_EPSILON = 1e-9;
+
+    /** 박자 길이를 16분음표 개수로 환산 ('16'=1, '16.'=1.5, '8'=2, '8.'=3, 그 외=0) */
+    function getDurationUnits(duration) {
+        const text = String(duration || "");
+        const base = getBaseDuration(text);
+        const baseUnits = base === "16" ? 1 : base === "8" ? 2 : 0;
+        if (!baseUnits) return 0;
+        return text.endsWith(".") ? baseUnits * 1.5 : baseUnits;
+    }
+
     function isPlainObject(value) {
         return Object.prototype.toString.call(value) === "[object Object]";
     }
@@ -376,6 +406,7 @@
                 mergeSlide: document.getElementById("editor-merge-slide"),
                 copySlide: document.getElementById("editor-copy-slide"),
                 pasteSlide: document.getElementById("editor-paste-slide"),
+                toggleAutoBeam: document.getElementById("editor-toggle-autobeam"),
                 prevSlide: document.getElementById("editor-prev-slide"),
                 nextSlide: document.getElementById("editor-next-slide"),
                 saveHymn: document.getElementById("editor-save-hymn"),
@@ -420,6 +451,8 @@
             this.orderMenuOpen = false;
             this.contextMenuOpen = false;
             this.slideClipboard = null;
+            this.noteClipboard = null;
+            this.isAutoBeam = readAutoBeamPreference();
             this.isSyncingExportOutput = false;
             this.exportSyncTimer = null;
             this.pendingExportHistory = null;
@@ -515,6 +548,9 @@
             this.dom.mergeSlide.addEventListener("click", () => this.mergeCurrentSlideIntoPrevious());
             this.dom.copySlide.addEventListener("click", () => this.copyCurrentSlide());
             this.dom.pasteSlide.addEventListener("click", () => this.pasteSlide());
+            if (this.dom.toggleAutoBeam) {
+                this.dom.toggleAutoBeam.addEventListener("click", () => this.toggleAutoBeam());
+            }
             this.dom.saveHymn.addEventListener("click", () => this.saveCurrentHymn());
             this.dom.deleteSaved.addEventListener("click", () => this.deleteCurrentSavedHymn());
             this.dom.importJson.addEventListener("click", () => this.dom.importFile.click());
@@ -573,6 +609,24 @@
                 ) {
                     event.preventDefault();
                     this.redo();
+                    return;
+                }
+
+                if (
+                    this.isEditMode
+                    && this.selectedBeamNotes.length > 0
+                    && (event.ctrlKey || event.metaKey)
+                    && (event.key === "c" || event.key === "C")
+                ) {
+                    // 선택한 음표가 없으면 가로채지 않는다 (평범한 텍스트 복사를 막지 않도록)
+                    event.preventDefault();
+                    this.copySelectedNotes();
+                    return;
+                }
+
+                if (this.isEditMode && (event.ctrlKey || event.metaKey) && (event.key === "v" || event.key === "V")) {
+                    event.preventDefault();
+                    this.pasteNotesAtSelection();
                     return;
                 }
 
@@ -2378,6 +2432,14 @@
             this.dom.mergeSlide.disabled = !this.getCurrentSlide() || this.getCurrentSlide().slideIndex === 0;
             this.dom.copySlide.disabled = !this.getCurrentSlide();
             this.dom.pasteSlide.disabled = !this.slideClipboard || !this.getCurrentSlide();
+            if (this.dom.toggleAutoBeam) {
+                this.dom.toggleAutoBeam.classList.toggle("is-active", this.isAutoBeam);
+                this.dom.toggleAutoBeam.setAttribute("aria-pressed", this.isAutoBeam ? "true" : "false");
+                this.dom.toggleAutoBeam.title = this.isAutoBeam
+                    ? "자동 연결선 켜짐 — 인접한 8분+16분을 자동으로 연결합니다 (클릭하면 끔)"
+                    : "자동 연결선 꺼짐 (클릭하면 켬)";
+                this.dom.toggleAutoBeam.disabled = !this.isEditMode;
+            }
             this.dom.saveHymn.disabled = !this.data || !this.data.hymn;
             this.dom.deleteSaved.disabled = !this.data || !this.data.hymn || !this.hasSavedHymn(getSongId(this.data.hymn));
             this.dom.undo.disabled = this.undoStack.length === 0;
@@ -3416,7 +3478,9 @@
             }
 
             if (selectionItems.length >= 2) {
-                const baseDurations = new Set();
+                // 8분/16분(점음표 포함)은 서로 섞여도 된다.
+                // 16분 쪽에만 두 번째 연결선이 붙고, 혼자면 부분 연결선(stub)으로 그려진다.
+                // 점8분 + 16분 = 당김음.
                 for (const item of selectionItems) {
                     const note = this.getNoteAt(item.lineIndex, item.charIndex);
                     const dur = getBaseDuration(note ? note.duration : "");
@@ -3426,14 +3490,6 @@
                             reason: "연결선은 8분음표와 16분음표에서만 적용할 수 있습니다."
                         };
                     }
-                    baseDurations.add(dur);
-                }
-
-                if (baseDurations.size > 1) {
-                    return {
-                        ok: false,
-                        reason: "8분음표와 16분음표는 함께 연결선으로 선택할 수 없습니다."
-                    };
                 }
             }
 
@@ -3702,6 +3758,9 @@
                     pitch: target.pitch,
                     duration: target.duration
                 };
+                // 새 음표를 놓았을 때만 자동 연결선을 돌린다.
+                // (음높이만 바꾼 경우까지 돌리면, 사용자가 방금 푼 연결선이 다시 생겨 버린다)
+                this.autoBeamAfterEdit([{ lineIndex: target.lineIndex, charIndex: target.charIndex }]);
             } else if (target.existingNote) {
                 // notehead 위를 직접 클릭한 경우에만 pitch 변경
                 existing.pitch = target.pitch;
@@ -3889,6 +3948,262 @@
             this.updateToolbarState();
             this.renderExportJson();
             this.setStatus("선택한 음표의 연결선을 해제했습니다.");
+        }
+
+        // ── 자동 연결선 (인접한 8분 + 16분 조합) ──
+
+        /**
+         * 한 줄에서 "인접한 8분 + 16분 조합"을 찾아 자동으로 연결선을 적용한다.
+         *
+         * 중요: 연속된 8분/16분을 통째로 하나의 빔으로 묶으면 안 된다. 예를 들어 226장의 한 줄은
+         * `8. 16 8. 16 ...` 가 26개 이어지는데, 이건 당김음 13쌍이지 26개짜리 빔 하나가 아니다.
+         * 이 악보 모델에는 마디선이 없으므로 음표 길이의 합으로 박을 센다:
+         * 16분음표를 1로 놓고 합이 한 박(=4)에 닿으면 거기서 끊는다. (8.+16 = 3+1 = 4 = 한 박)
+         *
+         * 그렇게 나눈 묶음 중 16분음표를 포함한 것만 연결한다. 8분끼리만 있는 묶음은 손대지 않는다.
+         * 이미 연결선이 있는 음표가 낀 묶음도 건너뛴다 (손으로 한 작업 보존).
+         *
+         * @param {Object} slide
+         * @param {number} lineIndex
+         * @param {Set<number>|null} touchedIndices - 주어지면 이 인덱스를 포함한 묶음만 처리
+         * @returns {number} 새로 연결선을 적용한 묶음 수
+         */
+        autoBeamLine(slide, lineIndex, touchedIndices = null) {
+            const lineNotes = slide && slide.notes ? slide.notes[lineIndex] : null;
+            if (!Array.isArray(lineNotes)) {
+                return 0;
+            }
+
+            // 1) 연결 가능한 음표가 연속된 구간
+            const runs = [];
+            let run = [];
+            for (let index = 0; index < lineNotes.length; index++) {
+                const note = lineNotes[index];
+                if (hasNoteData(note) && isBeamableDuration(note.duration)) {
+                    run.push(index);
+                } else {
+                    if (run.length > 0) runs.push(run);
+                    run = [];
+                }
+            }
+            if (run.length > 0) runs.push(run);
+
+            // 2) 각 구간을 한 박 단위로 쪼갠다
+            const groups = [];
+            for (const indices of runs) {
+                let current = [];
+                let units = 0;
+
+                for (const index of indices) {
+                    const noteUnits = getDurationUnits(lineNotes[index].duration);
+
+                    // 이 음표를 넣으면 한 박을 넘긴다 -> 여기서 끊는다
+                    if (current.length > 0 && units + noteUnits > BEAT_UNITS + UNIT_EPSILON) {
+                        groups.push(current);
+                        current = [];
+                        units = 0;
+                    }
+
+                    current.push(index);
+                    units += noteUnits;
+
+                    // 딱 한 박을 채웠다 -> 닫는다
+                    if (units >= BEAT_UNITS - UNIT_EPSILON) {
+                        groups.push(current);
+                        current = [];
+                        units = 0;
+                    }
+                }
+
+                if (current.length > 0) groups.push(current);
+            }
+
+            // 3) 조건에 맞는 묶음만 연결
+            let nextGroupId = this.getNextBeamGroupId();
+            let created = 0;
+
+            for (const indices of groups) {
+                if (indices.length < 2) continue;
+
+                const notes = indices.map((index) => lineNotes[index]);
+
+                // 16분음표가 하나라도 있어야 자동 연결 대상 (= 8분 + 16분 조합)
+                if (!notes.some((note) => getBaseDuration(note.duration) === "16")) continue;
+                // 이미 연결선이 있는 음표가 섞여 있으면 건너뛴다
+                if (notes.some((note) => note.beamGroup != null)) continue;
+                // 자동 모드에서는 이번 편집이 실제로 건드린 묶음만
+                if (touchedIndices && !indices.some((index) => touchedIndices.has(index))) continue;
+
+                const groupId = nextGroupId++;
+                notes.forEach((note) => { note.beamGroup = groupId; });
+                created++;
+            }
+
+            return created;
+        }
+
+        /**
+         * 편집 직후 자동 연결선 적용 (자동 모드가 켜져 있을 때만).
+         * 호출하는 쪽에서 recordHistory / commit / render를 이미 하고 있어야 한다.
+         * @param {Array<{lineIndex:number, charIndex:number}>} touched - 이번 편집이 건드린 음표들
+         */
+        autoBeamAfterEdit(touched) {
+            if (!this.isAutoBeam || !Array.isArray(touched) || touched.length === 0) {
+                return 0;
+            }
+
+            const slide = this.getCurrentSlide();
+            if (!slide) return 0;
+
+            const byLine = new Map();
+            touched.forEach((item) => {
+                if (!byLine.has(item.lineIndex)) byLine.set(item.lineIndex, new Set());
+                byLine.get(item.lineIndex).add(item.charIndex);
+            });
+
+            let created = 0;
+            byLine.forEach((indices, lineIndex) => {
+                created += this.autoBeamLine(slide, lineIndex, indices);
+            });
+            return created;
+        }
+
+        /** 현재 슬라이드 전체에 자동 연결선 적용 */
+        autoBeamCurrentSlide() {
+            const slide = this.getCurrentSlide();
+            if (!slide || !slide.notes) return 0;
+
+            let created = 0;
+            Object.keys(slide.notes).forEach((key) => {
+                created += this.autoBeamLine(slide, Number(key), null);
+            });
+            return created;
+        }
+
+        toggleAutoBeam() {
+            this.isAutoBeam = !this.isAutoBeam;
+            writeAutoBeamPreference(this.isAutoBeam);
+
+            if (!this.isAutoBeam) {
+                this.updateToolbarState();
+                this.setStatus("자동 연결선을 껐습니다.");
+                return;
+            }
+
+            // 켤 때 현재 슬라이드에 곧바로 적용 (기존 악보에도 쓸 수 있도록)
+            const slide = this.getCurrentSlide();
+            const snapshot = this.createHistorySnapshot();
+            const created = slide ? this.autoBeamCurrentSlide() : 0;
+
+            if (created > 0) {
+                this.recordHistory(snapshot);
+                this.cleanupOrphanBeamGroups(slide);
+                this.commitSlideNotes(slide);
+                this.renderAllLines();
+                this.renderExportJson();
+            }
+
+            this.updateToolbarState();
+            this.setStatus(created > 0
+                ? `자동 연결선을 켜고 ${created}개 묶음을 연결했습니다.`
+                : "자동 연결선을 켰습니다.");
+        }
+
+        // ── 음표 복사 / 붙여넣기 (Ctrl+C / Ctrl+V) ──
+
+        copySelectedNotes() {
+            const items = this._getBeamSelectedNotes();
+            if (items.length === 0) {
+                this.setStatus("복사할 음표를 먼저 선택해 주세요.", "warning");
+                return;
+            }
+
+            // 선택은 charIndex 오름차순. 첫 음표 기준 상대 위치로 저장해 두면
+            // 다른 줄/슬라이드에도 같은 간격으로 붙여넣을 수 있다.
+            const baseIndex = items[0].charIndex;
+            this.noteClipboard = {
+                notes: items.map((item) => ({
+                    offset: item.charIndex - baseIndex,
+                    note: deepClone(item.note)
+                }))
+            };
+
+            this.updateToolbarState();
+            this.setStatus(`${items.length}개 음표를 복사했습니다. 붙여넣을 위치의 음표를 선택하고 Ctrl+V를 누르세요.`);
+        }
+
+        pasteNotesAtSelection() {
+            if (!this.noteClipboard || this.noteClipboard.notes.length === 0) {
+                this.setStatus("복사한 음표가 없습니다.", "warning");
+                return;
+            }
+
+            const slide = this.getCurrentSlide();
+            const lineIndex = this.getSelectedBeamLineIndex();
+            if (!slide || lineIndex === null) {
+                this.setStatus("붙여넣을 위치의 음표를 선택해 주세요.", "warning");
+                return;
+            }
+
+            const anchors = this.selectedBeamNotes
+                .filter((item) => item.lineIndex === lineIndex)
+                .map((item) => item.charIndex);
+            if (anchors.length === 0) {
+                this.setStatus("붙여넣을 위치의 음표를 선택해 주세요.", "warning");
+                return;
+            }
+
+            const lineEl = this.dom.canvas.querySelector(`.editor-line[data-line-index="${lineIndex}"]`);
+            if (!lineEl || !lineEl._layout) {
+                return;
+            }
+
+            const anchor = Math.min(...anchors);
+            const slotCount = lineEl._layout.chars.length;
+            const entries = this.noteClipboard.notes;
+            const maxOffset = entries.reduce((max, entry) => Math.max(max, entry.offset), 0);
+
+            // 음표는 가사 글자 위에만 놓인다. 글자 수를 넘어가면 발표 화면에서 렌더되지 않으므로 막는다.
+            if (anchor + maxOffset >= slotCount) {
+                this.setStatus("붙여넣을 공간이 부족합니다. (가사 글자 수를 넘어갑니다)", "warning");
+                return;
+            }
+
+            this.recordHistory();
+            const lineNotes = this.ensureLineNotes(slide, lineIndex, slotCount);
+
+            // 연결선 그룹 ID는 새로 발급 — 원본 그룹과 하나로 합쳐지는 것을 막는다
+            let nextGroupId = this.getNextBeamGroupId();
+            const groupRemap = new Map();
+            const pasted = [];
+
+            entries.forEach((entry) => {
+                const note = deepClone(entry.note);
+                if (note.beamGroup != null) {
+                    if (!groupRemap.has(note.beamGroup)) {
+                        groupRemap.set(note.beamGroup, nextGroupId++);
+                    }
+                    note.beamGroup = groupRemap.get(note.beamGroup);
+                }
+
+                const charIndex = anchor + entry.offset;
+                lineNotes[charIndex] = note;
+                pasted.push({ lineIndex, charIndex });
+            });
+
+            this.selectedBeamNotes = pasted.slice().sort((a, b) => a.charIndex - b.charIndex);
+
+            // 자동 연결선보다 먼저 정리한다. 연결선 일부만 복사한 경우 붙여넣은 음표가
+            // 곧 사라질 beamGroup을 달고 있어서, 그대로 두면 자동 연결선이 그 묶음을 건너뛴다.
+            this.cleanupOrphanBeamGroups(slide);
+            this.autoBeamAfterEdit(pasted);
+
+            this.cleanupOrphanBeamGroups(slide);
+            this.commitSlideNotes(slide);
+            this.renderLine(lineIndex);
+            this.updateToolbarState();
+            this.renderExportJson();
+            this.setStatus(`${entries.length}개 음표를 붙여넣었습니다.`);
         }
 
         removeBeamGroupFromTarget(target) {
@@ -4429,6 +4744,7 @@
                 item.note.duration = wasDotted ? `${nextBaseDuration}.` : nextBaseDuration;
                 this.normalizeNoteBeamState(item.note);
             }
+            this.autoBeamAfterEdit(items);
             this.beamMenuMode = "main";
             this._refreshAfterBeamBulk();
             this.setStatus(`${items.length}개 음표 길이를 변경했습니다.`);
@@ -4442,6 +4758,7 @@
             for (const item of items) {
                 item.note.duration = this.toggleDottedDuration(item.note.duration);
             }
+            this.autoBeamAfterEdit(items);
             this._refreshAfterBeamBulk();
             this.setStatus(allDotted ? `${items.length}개 점음표를 제거했습니다.` : `${items.length}개 점음표를 추가했습니다.`);
         }
@@ -4561,6 +4878,7 @@
                 item.note.duration = wasDotted ? `${newBase}.` : newBase;
                 this.normalizeNoteBeamState(item.note);
             }
+            this.autoBeamAfterEdit(items);
             this._refreshAfterBeamBulk();
         }
 

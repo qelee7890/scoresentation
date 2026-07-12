@@ -6,6 +6,32 @@ function utcNowIso() {
     return new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/**
+ * updated_at 을 비교 가능한 epoch(ms)로 변환한다.
+ *
+ * 이 컬럼은 형식이 섞여 있다:
+ *  - ISO 문자열  "2026-07-11T21:52:37Z"  (앱이 저장할 때, utcNowIso)
+ *  - unix 초 문자열 "1776161500"          (tools/nwc_resync_db.py 가 int(time.time()) 을 씀)
+ * 그래서 문자열/숫자 단순 비교는 둘 다 틀린다.
+ * ('1776161500' < '2026-...' 는 항상 참이고, Number('2026-...') 는 NaN)
+ *
+ * @returns {number} epoch(ms), 해석 불가면 NaN
+ */
+function parseUpdatedAt(value) {
+    if (value === null || value === undefined) return NaN;
+
+    const text = String(value).trim();
+    if (!text) return NaN;
+
+    // unix epoch (초 10자리 / 밀리초 13자리)
+    if (/^\d{9,13}$/.test(text)) {
+        const num = Number(text);
+        return text.length <= 10 ? num * 1000 : num;
+    }
+
+    return Date.parse(text);
+}
+
 function normalizeSongId(payload, fallback = "") {
     if (!payload || typeof payload !== "object") return String(fallback || "").trim();
     return String(payload.id || payload.number || fallback || "").trim();
@@ -36,6 +62,96 @@ export class HymnRepository {
 
         this.baselineDb = openReadonlyIfExists(baselineDbPath);
         if (this.baselineDb) this._verifyBaselineSchema();
+
+        this._reconcileStaleUserOverrides();
+    }
+
+    /**
+     * 배포된 베이스라인이 로컬 수정본보다 최신이면, 로컬 수정본을 지워서 배포본이 이기게 한다.
+     *
+     * 평소 오버레이는 "user 행이 baseline 행을 통째로 가린다" 이다. 그래서 릴리스로 고친 곡이
+     * 예전에 그 곡을 한 번이라도 편집한 적 있는 사용자에게는 영원히 도달하지 못한다.
+     * 앱 시작 시 한 번 비교해서 오래된 로컬 수정본을 걷어낸다.
+     *
+     * 동률(=같은 시각)이면 베이스라인이 이긴다. 승격(promote) 도구가 user 행의 updated_at 을
+     * 그대로 복사해 넣기 때문에 배포된 행은 로컬과 시각이 같아지는 일이 흔하고, 그 경우
+     * 배포본이 (파이썬 교정 스크립트 등으로) 더 손본 판이기 때문이다.
+     *
+     * 릴리스 이후에 편집한 로컬 수정본은 로컬이 더 최신이므로 그대로 남는다 — 편집기는 정상 동작한다.
+     */
+    _reconcileStaleUserOverrides() {
+        if (!this.baselineDb) return;
+
+        try {
+            // 지운 수정본은 되돌릴 수 없으니, 내용이 실제로 달랐던 것만 보관해 둔다.
+            this.userDb.exec(`
+                CREATE TABLE IF NOT EXISTS user_override_archive (
+                    number TEXT NOT NULL,
+                    hymn_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    archived_at TEXT NOT NULL
+                )
+            `);
+
+            const baseline = new Map();
+            for (const row of this.baselineDb.prepare("SELECT number, hymn_json, updated_at FROM saved_hymns").all()) {
+                baseline.set(row.number, { hymnJson: row.hymn_json, time: parseUpdatedAt(row.updated_at) });
+            }
+
+            const archive = this.userDb.prepare(
+                "INSERT INTO user_override_archive (number, hymn_json, updated_at, archived_at) VALUES (?, ?, ?, ?)"
+            );
+            const dropOverride = this.userDb.prepare("DELETE FROM saved_hymns WHERE number = ?");
+            const dropTombstone = this.userDb.prepare("DELETE FROM user_tombstones WHERE number = ?");
+
+            let droppedOverrides = 0;
+            let archivedOverrides = 0;
+            let droppedTombstones = 0;
+
+            // 1) 베이스라인이 더 최신(또는 동일)인 로컬 수정본 제거
+            for (const row of this.userDb.prepare("SELECT number, hymn_json, updated_at FROM saved_hymns").all()) {
+                const base = baseline.get(row.number);
+                if (base === undefined) continue;   // 베이스라인에 없는 곡 = 사용자가 만든 곡, 유지
+
+                const userTime = parseUpdatedAt(row.updated_at);
+                // 어느 한쪽이라도 해석 불가면 손대지 않는다 (사용자 데이터 우선 보호)
+                if (!Number.isFinite(base.time) || !Number.isFinite(userTime)) continue;
+
+                if (base.time >= userTime) {
+                    // 내용이 같으면 지워도 잃을 게 없다. 다르면 보관해 두고 지운다.
+                    if (base.hymnJson !== row.hymn_json) {
+                        archive.run(row.number, row.hymn_json, row.updated_at, utcNowIso());
+                        archivedOverrides++;
+                    }
+                    dropOverride.run(row.number);
+                    droppedOverrides++;
+                }
+            }
+
+            // 2) 삭제 표시(tombstone)를 한 뒤에 나온 배포본이면 곡을 되살린다.
+            //    (사용자가 방금 지운 곡은 deleted_at 이 더 최신이므로 그대로 지워진 채 남는다)
+            for (const row of this.userDb.prepare("SELECT number, deleted_at FROM user_tombstones").all()) {
+                const base = baseline.get(row.number);
+                if (base === undefined) continue;
+
+                const deletedTime = parseUpdatedAt(row.deleted_at);
+                if (!Number.isFinite(base.time) || !Number.isFinite(deletedTime)) continue;
+
+                if (base.time >= deletedTime) {
+                    dropTombstone.run(row.number);
+                    droppedTombstones++;
+                }
+            }
+
+            if (droppedOverrides > 0 || droppedTombstones > 0) {
+                console.log(
+                    `[hymns] 배포본 우선: 오래된 로컬 수정본 ${droppedOverrides}건`
+                    + ` (내용이 달라 보관한 것 ${archivedOverrides}건), 삭제 표시 ${droppedTombstones}건을 정리했습니다.`
+                );
+            }
+        } catch (err) {
+            console.warn(`[hymns] 베이스라인 우선 정리 실패 (무시): ${err.message}`);
+        }
     }
 
     _initUserSchema() {

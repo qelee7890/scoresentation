@@ -632,13 +632,38 @@ def main():
     print(f'\n백업: {backup_path.name}')
 
     # 실제 업데이트
+    #
+    # updated_at 은 앱에서 "배포본이 로컬 수정본보다 최신인가"를 판단하는 기준이다
+    # (main/db.js _reconcileStaleUserOverrides). 그러니 내용이 실제로 바뀐 곡만 스탬프를 새로 찍는다.
+    # 안 바뀐 곡까지 일괄로 찍으면, 내용은 그대로인데 시각만 새로워져서
+    # 사용자가 직접 고쳐 둔 로컬 수정본이 애먼 이유로 지워진다.
+    changed = 0
+    unchanged = 0
     for num, (ksig, tsig, payload), _ in results:
+        cur.execute(
+            'SELECT key_signature, time_signature, hymn_json FROM saved_hymns WHERE number=?', (num,)
+        )
+        row = cur.fetchone()
+
+        if row and row[0] == ksig and row[1] == tsig:
+            # 문자열이 아니라 파싱한 객체로 비교한다. 기존 행의 JSON이 항상
+            # json.dumps(..., ensure_ascii=False) 와 똑같은 형태로 저장돼 있지는 않아서,
+            # 문자열로 비교하면 내용이 같아도 "바뀐 것"으로 잘못 판정된다.
+            try:
+                if json.loads(row[2]) == payload:
+                    unchanged += 1
+                    continue
+            except (ValueError, TypeError):
+                pass
+
         cur.execute(
             'UPDATE saved_hymns SET key_signature=?, time_signature=?, hymn_json=?, updated_at=? WHERE number=?',
             (ksig, tsig, json.dumps(payload, ensure_ascii=False), int(time.time()), num)
         )
+        changed += 1
+
     conn.commit()
-    print(f'DB 업데이트 완료: {len(results)}곡')
+    print(f'DB 업데이트 완료: 변경 {changed}곡 / 동일 {unchanged}곡 (동일한 곡은 updated_at 을 건드리지 않음)')
 
 
 if __name__ == '__main__':

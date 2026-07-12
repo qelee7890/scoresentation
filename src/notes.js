@@ -37,10 +37,11 @@ class NotesEngine {
         this.flagOffsetYDown = -2;       // stemDown일 때 꼬리 Y 오프셋
         this.flagOffsetYUp = -6;         // stemUp일 때 꼬리 Y 오프셋
 
-        // 연결선(beam) 상수
-        this.beamThickness = 5;          // 첫 번째 연결선 두께
-        this.beam2Thickness = 1.5;       // 두 번째 연결선 두께 (16분음표)
-        this.beamSpacing = 4;            // 연결선 사이 시각적 간격
+        // 연결선(beam) 상수 — lineSpacing 비례로 확대/축소에서도 굵기 비율 유지
+        // (staffHeight 40 = lineSpacing 10 기준 각각 5 / 4 로, 기존 값과 동일)
+        this.beamThickness = this.lineSpacing * 0.5;   // 연결선 두께 (모든 단계 동일)
+        this.beamSpacing = this.lineSpacing * 0.4;     // 연결선 사이 간격
+        this.beamStubLength = this.lineSpacing * 1.1;  // 부분 연결선(stub) 길이
 
         // SMuFL 코드포인트 (Bravura 폰트)
         this.smufl = {
@@ -395,24 +396,47 @@ class NotesEngine {
 
         for (let i = 0; i < notes.length; i++) {
             const note = notes[i];
-            if (note && note.beamGroup !== undefined) {
-                if (!groups[note.beamGroup]) {
-                    groups[note.beamGroup] = [];
-                }
-                groups[note.beamGroup].push({
-                    index: i,
-                    x: charPositions[i] + totalMargin,
-                    pitch: note.pitch,
-                    duration: note.duration || 'q'
-                });
+            if (!note || note.beamGroup == null) continue;
+
+            // 가사 글자 수를 넘는 음표(dangling)는 x 좌표가 없다. 그대로 두면 NaN이 되어
+            // polygon 좌표가 깨지고 SVG 전체가 사라진다 — 그룹에서 빼고 일반 음표로 그린다.
+            const x = charPositions[i];
+            if (!Number.isFinite(x)) continue;
+
+            if (!groups[note.beamGroup]) {
+                groups[note.beamGroup] = [];
             }
+            groups[note.beamGroup].push({
+                index: i,
+                x: x + totalMargin,
+                pitch: note.pitch,
+                duration: note.duration || 'q'
+            });
         }
 
         return groups;
     }
 
     /**
+     * 박자 -> 연결선 개수 (8분=1, 16분=2). 점(.)은 개수에 영향을 주지 않는다.
+     * '8'/'8.' -> 1, '16'/'16.' -> 2, 그 외 -> 0
+     */
+    getBeamCount(duration) {
+        const base = String(duration || '').replace(/\.+$/, '');
+        if (base === '8') return 1;
+        if (base === '16') return 2;
+        return 0;
+    }
+
+    /**
      * 연결선(beam) SVG 생성 - 기둥도 함께 그림
+     *
+     * 음표마다 필요한 연결선 개수(8분=1, 16분=2)를 따로 계산해서 단계별로 그린다.
+     * - 1단계 연결선: 그룹 전체를 잇는다.
+     * - 2단계 이상: 그 단계가 필요한 음표들이 연속된 구간만 잇고,
+     *   혼자 떨어진 음표는 부분 연결선(stub)으로 그린다.
+     *   점8분+16분(당김음)이 바로 이 경우로, 16분 쪽에만 짧은 stub이 붙는다.
+     *
      * @param {Array} beamNotes - 연결할 음표들 [{x, pitch, duration}, ...]
      */
     createBeams(beamNotes, staffTop) {
@@ -426,45 +450,79 @@ class NotesEngine {
         }, 0) / beamNotes.length;
         const stemDown = avgPitch <= 1.5;
 
-        // 각 음표의 기둥 위치 정보 계산 (헬퍼 메서드 사용)
+        // 각 음표의 기둥 위치 + 필요한 연결선 개수
         const noteInfos = beamNotes.map(note => {
             const pitchPos = this.pitchMap[note.pitch] ?? 3;
             const { stemX, stemStartY, stemEndY } = this.getStemPosition(note.x, pitchPos, staffTop, stemDown);
-            return { x: note.x, stemX, stemStartY, defaultStemEndY: stemEndY, pitchPos, duration: note.duration };
+            return {
+                x: note.x, stemX, stemStartY, defaultStemEndY: stemEndY, pitchPos,
+                duration: note.duration,
+                // 연결선 그룹에 속한 이상 최소 1개는 그린다 (4분음표가 섞여 들어와도 깨지지 않도록)
+                beams: Math.max(1, this.getBeamCount(note.duration))
+            };
         });
 
-        // 첫 번째와 마지막 음표의 기본 기둥 끝으로 연결선 위치 결정
+        // 첫 번째와 마지막 음표의 기본 기둥 끝으로 연결선 위치/기울기 결정
         const firstNote = noteInfos[0];
         const lastNote = noteInfos[noteInfos.length - 1];
-        const beam1Y1 = firstNote.defaultStemEndY;
-        const beam1Y2 = lastNote.defaultStemEndY;
+        const span = lastNote.stemX - firstNote.stemX;
+        const beamSlope = span === 0 ? 0 : (lastNote.defaultStemEndY - firstNote.defaultStemEndY) / span;
+        const beamYAt = (x) => firstNote.defaultStemEndY + beamSlope * (x - firstNote.stemX);
 
-        // 연결선 기울기 계산 (첫 번째 ~ 마지막 기둥 끝 연결)
-        const beamSlope = (beam1Y2 - beam1Y1) / (lastNote.stemX - firstNote.stemX);
+        // 연결선은 기둥 끝에서 음표 머리 쪽으로 쌓인다
+        const towardHead = stemDown ? -1 : 1;
+        const levelOffset = (level) => towardHead * (this.beamThickness + this.beamSpacing) * (level - 1);
 
-        // 각 음표의 기둥을 연결선까지 연장하여 그림
+        // 각 음표의 기둥을 1단계 연결선까지 연장하여 그림
         noteInfos.forEach((info) => {
-            // 이 음표 위치에서 연결선의 Y 좌표 계산
-            const beamYAtNote = beam1Y1 + beamSlope * (info.stemX - firstNote.stemX);
-
-            // 기둥 그리기: 음표 머리에서 연결선까지
-            svg += `<line x1="${info.stemX}" y1="${info.stemStartY}" x2="${info.stemX}" y2="${beamYAtNote}"
+            svg += `<line x1="${info.stemX}" y1="${info.stemStartY}" x2="${info.stemX}" y2="${beamYAt(info.stemX)}"
                          stroke="${this.noteColor}" stroke-width="1.2"/>`;
         });
 
-        // 8분음표 연결선 (1개)
-        svg += `<polygon points="${firstNote.stemX},${beam1Y1} ${lastNote.stemX},${beam1Y2} ${lastNote.stemX},${beam1Y2 + (stemDown ? -this.beamThickness : this.beamThickness)} ${firstNote.stemX},${beam1Y1 + (stemDown ? -this.beamThickness : this.beamThickness)}"
-                        fill="${this.noteColor}"/>`;
-
-        // 16분음표가 있으면 두 번째 연결선 추가
-        const has16th = beamNotes.some(n => n.duration === '16' || n.duration === '16.');
-        if (has16th) {
-            // 두 번째 연결선 오프셋: 첫 번째 연결선 두께 + 시각적 간격
-            const beam2Offset = stemDown
-                ? -(this.beamThickness + this.beamSpacing)   // stemDown: 위로 이동 (음표 머리 방향)
-                : (this.beamThickness + this.beamSpacing);   // stemUp: 아래로 이동 (음표 머리 방향)
-            svg += `<polygon points="${firstNote.stemX},${beam1Y1 + beam2Offset} ${lastNote.stemX},${beam1Y2 + beam2Offset} ${lastNote.stemX},${beam1Y2 + beam2Offset + (stemDown ? this.beam2Thickness : -this.beam2Thickness)} ${firstNote.stemX},${beam1Y1 + beam2Offset + (stemDown ? this.beam2Thickness : -this.beam2Thickness)}"
+        // xa~xb 구간에 level 단계 연결선 하나를 사각형으로 그린다
+        const beamQuad = (xa, xb, level) => {
+            const ya = beamYAt(xa) + levelOffset(level);
+            const yb = beamYAt(xb) + levelOffset(level);
+            const t = towardHead * this.beamThickness;
+            return `<polygon points="${xa},${ya} ${xb},${yb} ${xb},${yb + t} ${xa},${ya + t}"
                             fill="${this.noteColor}"/>`;
+        };
+
+        const maxLevel = noteInfos.reduce((max, info) => Math.max(max, info.beams), 1);
+
+        for (let level = 1; level <= maxLevel; level++) {
+            let i = 0;
+            while (i < noteInfos.length) {
+                if (noteInfos[i].beams < level) {
+                    i++;
+                    continue;
+                }
+
+                // 이 단계가 필요한 음표들의 연속 구간 [i, j]
+                let j = i;
+                while (j + 1 < noteInfos.length && noteInfos[j + 1].beams >= level) {
+                    j++;
+                }
+
+                if (j > i) {
+                    svg += beamQuad(noteInfos[i].stemX, noteInfos[j].stemX, level);
+                } else if (level > 1) {
+                    // 혼자 떨어진 음표 -> 부분 연결선(stub).
+                    // 앞 음표가 있으면 뒤(왼쪽)로, 없으면 앞(오른쪽)으로 뻗는다.
+                    const prev = noteInfos[i - 1];
+                    const next = noteInfos[i + 1];
+                    const neighbor = prev || next;
+                    const direction = prev ? -1 : 1;
+                    const gap = neighbor
+                        ? Math.abs(noteInfos[i].stemX - neighbor.stemX)
+                        : this.beamStubLength;
+                    const stubLength = Math.max(1, Math.min(this.beamStubLength, gap * 0.45));
+                    const xa = noteInfos[i].stemX;
+                    svg += beamQuad(xa, xa + direction * stubLength, level);
+                }
+
+                i = j + 1;
+            }
         }
 
         return svg;
@@ -536,10 +594,11 @@ class NotesEngine {
             svg += this.createKeySignature(this.clefMargin + 5, staffTop, keyInfo);
         }
 
-        // 연결선 그룹 수집
-        const beamGroups = this.collectBeamGroups(notes, charPositions, totalMargin);
+        // 연결선 그룹 수집 (2개 이상인 그룹만 실제 연결선으로 취급)
+        const beamGroups = Object.values(this.collectBeamGroups(notes, charPositions, totalMargin))
+            .filter(group => group.length >= 2);
         const beamedIndices = new Set();
-        Object.values(beamGroups).forEach(group => {
+        beamGroups.forEach(group => {
             group.forEach(n => beamedIndices.add(n.index));
         });
 
@@ -562,7 +621,7 @@ class NotesEngine {
         }
 
         // 연결선 렌더링
-        Object.values(beamGroups).forEach(group => {
+        beamGroups.forEach(group => {
             svg += this.createBeams(group, staffTop);
         });
 

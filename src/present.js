@@ -527,6 +527,9 @@
                 document.querySelector(".present-shell").classList.toggle("sidebar-collapsed");
             });
 
+            // 창 크기 / 사이드바 접기로 가사 블록이 움직여도 절 뱃지가 가사 앞에 붙어 있게 한다
+            this.watchVerseBadgeLayout();
+
             // 셋 제목 편집
             this.dom.setlistName.addEventListener("input", () => {
                 this.setlistName = this.dom.setlistName.value;
@@ -2431,6 +2434,32 @@
                 }
             } else {
                 requestAnimationFrame(() => this.positionVerseBadgeForSlide(this.allSlides[index]));
+            }
+        }
+
+        /**
+         * 절 뱃지는 가사 블록 기준의 절대 좌표(px)로 놓인다. 그런데 .lyrics-content 는
+         * 가운데 정렬 플렉스라서, 사이드바를 접거나 창 크기가 바뀌면 가사 블록이 좌우로
+         * 움직인다. 슬라이드 전환 때만 다시 계산하면 뱃지가 옛 좌표에 남아 가사와 겹친다.
+         * 그래서 레이아웃이 변할 때마다 다시 계산해 준다 (오선지 악보처럼 가사 앞에 붙어 있도록).
+         */
+        watchVerseBadgeLayout() {
+            const reposition = () => {
+                if (this._badgeFrame) return;
+                this._badgeFrame = requestAnimationFrame(() => {
+                    this._badgeFrame = null;
+                    if (!this.allSlides || this.allSlides.length === 0) return;
+                    this.positionVerseBadgeForSlide(this.allSlides[this.currentGlobalIndex]);
+                });
+            };
+
+            window.addEventListener("resize", reposition);
+
+            // 사이드바 접기는 CSS 트랜지션이라 폭이 연속으로 변한다.
+            // ResizeObserver가 그 과정을 매 프레임 잡아주므로 뱃지가 가사를 따라 움직인다.
+            if (typeof ResizeObserver !== "undefined" && this.dom.presentationContainer) {
+                this._badgeObserver = new ResizeObserver(reposition);
+                this._badgeObserver.observe(this.dom.presentationContainer);
             }
         }
 

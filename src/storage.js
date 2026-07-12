@@ -166,6 +166,20 @@
         return store;
     }
 
+    // updated_at 은 ISO("2026-07-11T21:52:37Z")와 unix 초("1776161500")가 섞여 있어
+    // 문자열 비교로는 순서를 못 매긴다 ('1' < '2' 라서 epoch 가 항상 더 오래된 것으로 보인다).
+    // main/db.js 의 parseUpdatedAt 과 같은 규칙.
+    function parseUpdatedAt(value) {
+        if (value === null || value === undefined) return NaN;
+        const text = String(value).trim();
+        if (!text) return NaN;
+        if (/^\d{9,13}$/.test(text)) {
+            const num = Number(text);
+            return text.length <= 10 ? num * 1000 : num;
+        }
+        return Date.parse(text);
+    }
+
     async function syncLegacyLocalStore() {
         const localStore = normalizeStore(readStore());
         const songIds = Object.keys(localStore);
@@ -173,11 +187,18 @@
         for (const songId of songIds) {
             const localEntry = localStore[songId];
             const remoteEntry = activeStore[songId];
-            const shouldUpload = !remoteEntry
-                || (
-                    localEntry.updatedAt
-                    && (!remoteEntry.updatedAt || localEntry.updatedAt > remoteEntry.updatedAt)
-                );
+
+            // 배포본(베이스라인) 우선: 로컬 legacy 저장분은 확실히 더 최신일 때만 올린다.
+            // 이렇게 하지 않으면 시작 시 정리한 오래된 수정본을 여기서 되살려 버린다.
+            let shouldUpload;
+            if (!remoteEntry) {
+                shouldUpload = true;
+            } else {
+                const localTime = parseUpdatedAt(localEntry.updatedAt);
+                const remoteTime = parseUpdatedAt(remoteEntry.updatedAt);
+                shouldUpload = Number.isFinite(localTime)
+                    && (!Number.isFinite(remoteTime) || localTime > remoteTime);
+            }
 
             if (!shouldUpload) {
                 continue;
