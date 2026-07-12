@@ -29,9 +29,21 @@
         } catch (_) { /* 저장 실패는 무시 (세션 내에서는 동작) */ }
     }
 
-    // 자동 연결선은 "한 박" 단위로 끊는다. 16분음표를 1로 센다 (4분음표 한 박 = 4).
-    const BEAT_UNITS = 4;
+    // 자동 연결선은 "한 박" 단위로 끊는다. 16분음표를 1로 센다.
+    const BEAT_UNITS = 4;           // 홑박자: 4분음표 = 16분음표 4개
+    const COMPOUND_BEAT_UNITS = 6;  // 겹박자(6/8,9/8,12/8): 점4분음표 = 16분음표 6개
     const UNIT_EPSILON = 1e-9;
+
+    /** 박자표에서 한 박이 16분음표 몇 개인지 (6/8·9/8 등 겹박자는 점4분음표가 한 박) */
+    function getBeatUnits(timeSignature) {
+        const match = /^\s*(\d+)\s*\/\s*(\d+)\s*$/.exec(String(timeSignature || ""));
+        if (match) {
+            const beats = Number(match[1]);
+            const value = Number(match[2]);
+            if (value === 8 && beats % 3 === 0) return COMPOUND_BEAT_UNITS;
+        }
+        return BEAT_UNITS;
+    }
 
     /** 박자 길이를 16분음표 개수로 환산 ('16'=1, '16.'=1.5, '8'=2, '8.'=3, 그 외=0) */
     function getDurationUnits(duration) {
@@ -3988,7 +4000,8 @@
             }
             if (run.length > 0) runs.push(run);
 
-            // 2) 각 구간을 한 박 단위로 쪼갠다
+            // 2) 각 구간을 한 박 단위로 쪼갠다 (6/8 같은 겹박자는 점4분음표가 한 박)
+            const beatUnits = getBeatUnits(slide.timeSignature);
             const groups = [];
             for (const indices of runs) {
                 let current = [];
@@ -3998,7 +4011,7 @@
                     const noteUnits = getDurationUnits(lineNotes[index].duration);
 
                     // 이 음표를 넣으면 한 박을 넘긴다 -> 여기서 끊는다
-                    if (current.length > 0 && units + noteUnits > BEAT_UNITS + UNIT_EPSILON) {
+                    if (current.length > 0 && units + noteUnits > beatUnits + UNIT_EPSILON) {
                         groups.push(current);
                         current = [];
                         units = 0;
@@ -4008,7 +4021,7 @@
                     units += noteUnits;
 
                     // 딱 한 박을 채웠다 -> 닫는다
-                    if (units >= BEAT_UNITS - UNIT_EPSILON) {
+                    if (units >= beatUnits - UNIT_EPSILON) {
                         groups.push(current);
                         current = [];
                         units = 0;
