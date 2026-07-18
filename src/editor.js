@@ -29,29 +29,25 @@
         } catch (_) { /* 저장 실패는 무시 (세션 내에서는 동작) */ }
     }
 
-    // 자동 연결선은 "한 박" 단위로 끊는다. 16분음표를 1로 센다.
-    const BEAT_UNITS = 4;           // 홑박자: 4분음표 = 16분음표 4개
-    const COMPOUND_BEAT_UNITS = 6;  // 겹박자(6/8,9/8,12/8): 점4분음표 = 16분음표 6개
-    const UNIT_EPSILON = 1e-9;
+    // 자동 연결선 한 묶음 최대 음표 수. 인접 런이 이보다 길면 8 이하로 균등 분할한다
+    // (박자표 무관, 시각적 상한 — 한 줄 전체를 잇는 지나치게 긴 빔 방지).
+    const MAX_BEAM_RUN = 8;
 
-    /** 박자표에서 한 박이 16분음표 몇 개인지 (6/8·9/8 등 겹박자는 점4분음표가 한 박) */
-    function getBeatUnits(timeSignature) {
-        const match = /^\s*(\d+)\s*\/\s*(\d+)\s*$/.exec(String(timeSignature || ""));
-        if (match) {
-            const beats = Number(match[1]);
-            const value = Number(match[2]);
-            if (value === 8 && beats % 3 === 0) return COMPOUND_BEAT_UNITS;
+    /** 인접 런(인덱스 배열)을 MAX_BEAM_RUN 이하로 균등 분할. 각 조각은 2개 이상, 잔여 1음표 없음 */
+    function splitBeamRun(indices) {
+        const total = indices.length;
+        if (total <= MAX_BEAM_RUN) return [indices];
+        const groups = Math.ceil(total / MAX_BEAM_RUN);
+        const baseSize = Math.floor(total / groups);
+        const remainder = total % groups;
+        const chunks = [];
+        let pos = 0;
+        for (let g = 0; g < groups; g++) {
+            const size = baseSize + (g < remainder ? 1 : 0);
+            chunks.push(indices.slice(pos, pos + size));
+            pos += size;
         }
-        return BEAT_UNITS;
-    }
-
-    /** 박자 길이를 16분음표 개수로 환산 ('16'=1, '16.'=1.5, '8'=2, '8.'=3, 그 외=0) */
-    function getDurationUnits(duration) {
-        const text = String(duration || "");
-        const base = getBaseDuration(text);
-        const baseUnits = base === "16" ? 1 : base === "8" ? 2 : 0;
-        if (!baseUnits) return 0;
-        return text.endsWith(".") ? baseUnits * 1.5 : baseUnits;
+        return chunks;
     }
 
     function isPlainObject(value) {
@@ -3962,22 +3958,22 @@
             this.setStatus("선택한 음표의 연결선을 해제했습니다.");
         }
 
-        // ── 자동 연결선 (인접한 8분 + 16분 조합) ──
+        // ── 자동 연결선 (한 줄 내 인접한 음표) ──
 
         /**
-         * 한 줄에서 "인접한 8분 + 16분 조합"을 찾아 자동으로 연결선을 적용한다.
+         * 한 줄에서 "인접한 8분/16분(점음표 포함) 음표"를 하나의 연결선으로 묶는다.
          *
-         * 중요: 연속된 8분/16분을 통째로 하나의 빔으로 묶으면 안 된다. 예를 들어 226장의 한 줄은
-         * `8. 16 8. 16 ...` 가 26개 이어지는데, 이건 당김음 13쌍이지 26개짜리 빔 하나가 아니다.
-         * 이 악보 모델에는 마디선이 없으므로 음표 길이의 합으로 박을 센다:
-         * 16분음표를 1로 놓고 합이 한 박(=4)에 닿으면 거기서 끊는다. (8.+16 = 3+1 = 4 = 한 박)
+         * 박자표는 보지 않고 오직 인접 관계로만 판단한다. 이 악보 모델의 음표 배열은
+         * 멜로디를 가사 글자 기준으로 자른 것이라 중간에 음표가 생략된 경우가 있어서,
+         * 음표 길이의 합(박)으로 끊으면 실제 박자와 어긋날 수 있기 때문이다.
+         * 그래서 4분음표 등 연결 불가능한 음표로 끊기는 구간(런) 전체를 한 묶음으로 잇되,
+         * 지나치게 긴 런(MAX_BEAM_RUN 초과)은 8 이하로 균등 분할한다.
          *
-         * 그렇게 나눈 묶음 중 16분음표를 포함한 것만 연결한다. 8분끼리만 있는 묶음은 손대지 않는다.
-         * 이미 연결선이 있는 음표가 낀 묶음도 건너뛴다 (손으로 한 작업 보존).
+         * 이미 연결선이 있는 음표가 낀 런은 건너뛴다 (손으로 한 작업 보존).
          *
          * @param {Object} slide
          * @param {number} lineIndex
-         * @param {Set<number>|null} touchedIndices - 주어지면 이 인덱스를 포함한 묶음만 처리
+         * @param {Set<number>|null} touchedIndices - 주어지면 이 인덱스를 포함한 런만 처리
          * @returns {number} 새로 연결선을 적용한 묶음 수
          */
         autoBeamLine(slide, lineIndex, touchedIndices = null) {
@@ -3986,7 +3982,7 @@
                 return 0;
             }
 
-            // 1) 연결 가능한 음표가 연속된 구간
+            // 연결 가능한 음표가 연속된 구간(런)을 모은다 (인덱스 배열)
             const runs = [];
             let run = [];
             for (let index = 0; index < lineNotes.length; index++) {
@@ -4000,56 +3996,25 @@
             }
             if (run.length > 0) runs.push(run);
 
-            // 2) 각 구간을 한 박 단위로 쪼갠다 (6/8 같은 겹박자는 점4분음표가 한 박)
-            const beatUnits = getBeatUnits(slide.timeSignature);
-            const groups = [];
-            for (const indices of runs) {
-                let current = [];
-                let units = 0;
-
-                for (const index of indices) {
-                    const noteUnits = getDurationUnits(lineNotes[index].duration);
-
-                    // 이 음표를 넣으면 한 박을 넘긴다 -> 여기서 끊는다
-                    if (current.length > 0 && units + noteUnits > beatUnits + UNIT_EPSILON) {
-                        groups.push(current);
-                        current = [];
-                        units = 0;
-                    }
-
-                    current.push(index);
-                    units += noteUnits;
-
-                    // 딱 한 박을 채웠다 -> 닫는다
-                    if (units >= beatUnits - UNIT_EPSILON) {
-                        groups.push(current);
-                        current = [];
-                        units = 0;
-                    }
-                }
-
-                if (current.length > 0) groups.push(current);
-            }
-
-            // 3) 조건에 맞는 묶음만 연결
             let nextGroupId = this.getNextBeamGroupId();
             let created = 0;
 
-            for (const indices of groups) {
-                if (indices.length < 2) continue;
+            for (const runIndices of runs) {
+                if (runIndices.length < 2) continue;
 
-                const notes = indices.map((index) => lineNotes[index]);
-
-                // 16분음표가 하나라도 있어야 자동 연결 대상 (= 8분 + 16분 조합)
-                if (!notes.some((note) => getBaseDuration(note.duration) === "16")) continue;
+                const notes = runIndices.map((index) => lineNotes[index]);
                 // 이미 연결선이 있는 음표가 섞여 있으면 건너뛴다
                 if (notes.some((note) => note.beamGroup != null)) continue;
-                // 자동 모드에서는 이번 편집이 실제로 건드린 묶음만
-                if (touchedIndices && !indices.some((index) => touchedIndices.has(index))) continue;
+                // 자동 모드에서는 이번 편집이 실제로 건드린 런만
+                if (touchedIndices && !runIndices.some((index) => touchedIndices.has(index))) continue;
 
-                const groupId = nextGroupId++;
-                notes.forEach((note) => { note.beamGroup = groupId; });
-                created++;
+                // 8음표 상한으로 분할해 각 조각을 하나의 연결선으로
+                for (const chunk of splitBeamRun(runIndices)) {
+                    if (chunk.length < 2) continue;
+                    const groupId = nextGroupId++;
+                    chunk.forEach((index) => { lineNotes[index].beamGroup = groupId; });
+                    created++;
+                }
             }
 
             return created;
