@@ -40,7 +40,8 @@ class NotesEngine {
         // 연결선(beam) 상수 — lineSpacing 비례로 확대/축소에서도 굵기 비율 유지
         // (staffHeight 40 = lineSpacing 10 기준 각각 5 / 4 로, 기존 값과 동일)
         this.beamThickness = this.lineSpacing * 0.5;   // 연결선 두께 (모든 단계 동일)
-        this.beamSpacing = this.lineSpacing * 0.4;     // 연결선 사이 간격
+        this.beamSpacing = this.lineSpacing * 0.4;     // 연결선 사이 간격 (1↔2단계)
+        this.beamSpacingFactor = 0.7;                  // 2단계 이상 간격을 1단계 간격의 70%로
         this.beamStubLength = this.lineSpacing * 1.1;  // 부분 연결선(stub) 길이
 
         // SMuFL 코드포인트 (Bravura 폰트)
@@ -462,16 +463,32 @@ class NotesEngine {
             };
         });
 
-        // 첫 번째와 마지막 음표의 기본 기둥 끝으로 연결선 위치/기울기 결정
+        // 첫 번째와 마지막 음표의 기본 기둥 끝으로 연결선 기울기 결정
         const firstNote = noteInfos[0];
         const lastNote = noteInfos[noteInfos.length - 1];
         const span = lastNote.stemX - firstNote.stemX;
         const beamSlope = span === 0 ? 0 : (lastNote.defaultStemEndY - firstNote.defaultStemEndY) / span;
-        const beamYAt = (x) => firstNote.defaultStemEndY + beamSlope * (x - firstNote.stemX);
+        const rawBeamYAt = (x) => firstNote.defaultStemEndY + beamSlope * (x - firstNote.stemX);
 
-        // 연결선은 기둥 끝에서 음표 머리 쪽으로 쌓인다
+        // 높이 보정: 첫/끝 음표만으로 정한 연결선은 중간에 더 튀어나온 음표의 머리를 지나갈 수 있다.
+        // (예: B3 … G4 … D4 에서 가운데 G4 가 빔에 붙어 보임)
+        // 모든 음표의 기둥이 최소 길이(stemHeight) 이상 되도록 연결선을 머리 반대쪽으로 밀어낸다.
+        // stemUp = 위로(작은 Y), stemDown = 아래로(큰 Y).
+        const minStemLen = this.stemHeight;
+        let shift = 0;
+        noteInfos.forEach((info) => {
+            const rawY = rawBeamYAt(info.stemX);
+            // 기둥 길이 = 머리(stemStartY)에서 연결선까지의 거리 (양수여야 정상)
+            const stemLen = stemDown ? (rawY - info.stemStartY) : (info.stemStartY - rawY);
+            const deficit = minStemLen - stemLen;
+            if (deficit > shift) shift = deficit;
+        });
+        const awayFromHead = stemDown ? 1 : -1;   // 머리에서 멀어지는 방향(기둥이 길어지는 쪽)
+        const beamYAt = (x) => rawBeamYAt(x) + awayFromHead * shift;
+
+        // 연결선은 기둥 끝에서 음표 머리 쪽으로 쌓인다. 2단계 이상은 간격을 70%로 좁힌다.
         const towardHead = stemDown ? -1 : 1;
-        const levelOffset = (level) => towardHead * (this.beamThickness + this.beamSpacing) * (level - 1);
+        const levelOffset = (level) => towardHead * (this.beamThickness + this.beamSpacing * this.beamSpacingFactor) * (level - 1);
 
         // 각 음표의 기둥을 1단계 연결선까지 연장하여 그림
         noteInfos.forEach((info) => {
