@@ -140,6 +140,24 @@ def slide_count(hymn: dict) -> int:
     return sum(len(section.get("korean") or []) for section in sections(hymn))
 
 
+def visible_note_total(hymn: dict) -> int:
+    """무대에서 실제로 렌더되는 음표 수.
+
+    음표는 가사 글자 위에 얹혀 그려지므로(notes.js 는 i < chars.length 까지만 그린다),
+    글자 수를 넘는 음표(dangling)는 발표 화면에 나오지 않는다. 후퇴 판정은 이 '보이는' 수로
+    해야 한다. 분절을 고치면서 안 보이던 음표를 정리한 경우까지 손실로 볼 수는 없다.
+    """
+    total = 0
+    for section in sections(hymn):
+        notes = section.get("notes") or []
+        for slide_index, slide in enumerate(section.get("korean") or []):
+            note_map = notes[slide_index] if slide_index < len(notes) else {}
+            for line_index, line in enumerate(slide.split("<br/>")):
+                arr = note_map.get(str(line_index)) or []
+                total += min(len(arr), len(nonspace(line)))
+    return total
+
+
 def regression_warnings(user_hymn: dict, base_hymn: dict) -> list[str]:
     """승격했을 때 baseline 에만 있던 작업이 사라지는지 본다.
 
@@ -148,9 +166,9 @@ def regression_warnings(user_hymn: dict, base_hymn: dict) -> list[str]:
     내용상으로는 baseline 이 더 발전한 상태일 수 있다.
     """
     warnings = []
-    user_notes, base_notes = note_total(user_hymn), note_total(base_hymn)
+    user_notes, base_notes = visible_note_total(user_hymn), visible_note_total(base_hymn)
     if user_notes != base_notes:
-        warnings.append(f"음표 수 {base_notes} → {user_notes}")
+        warnings.append(f"들리는 음표 수 {base_notes} → {user_notes}")
     user_beams, base_beams = beam_group_count(user_hymn), beam_group_count(base_hymn)
     if user_beams < base_beams:
         warnings.append(f"빔 묶음 {base_beams} → {user_beams} (baseline 의 빔 작업이 되돌아감)")
@@ -349,6 +367,10 @@ def promote_hymns(user_dir: Path, numbers: list[str], states: dict, apply: bool,
         mark = f"음표 {note_total(hymn)}개, 빔 {beam_group_count(hymn)}묶음, 슬라이드 {slide_count(hymn)}개"
         if bad:
             mark += f", ⚠ 정합성 경고 {len(bad)}줄"
+        if info["base"] is not None:
+            base_bad = len(dangling_lines(json.loads(info["base"]["hymn_json"])))
+            if base_bad > len(bad):
+                mark += f"  (개선: 안 보이던 음표 있는 줄 {base_bad} → {len(bad)})"
         print(f"   [{'승격' if apply else '승격예정'}] {number}  ({info['status']}, {mark})")
         for line in bad[:3]:
             print(f"              ⚠ {line}")
