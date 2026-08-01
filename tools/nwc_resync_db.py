@@ -20,10 +20,12 @@ from pathlib import Path
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-ROOT = Path(__file__).parent
+# 이 스크립트는 tools/ 안에 있다. data/ 와 sample/ 은 저장소 루트, 브리지는 tools/ 에 있다.
+TOOLS_DIR = Path(__file__).resolve().parent
+ROOT = TOOLS_DIR.parent
 DB_PATH = ROOT / 'data' / 'scoresentation.db'
 NWC_DIR = ROOT / 'sample' / 'nwc찬송'
-BRIDGE = ROOT / 'nwc_bridge.mjs'
+BRIDGE = TOOLS_DIR / 'nwc_bridge.mjs'
 
 
 def parse_nwc(nwc_path):

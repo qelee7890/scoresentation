@@ -15,7 +15,8 @@ from typing import Any
 from urllib.parse import unquote, urlparse, quote
 
 
-ROOT_DIR = Path(__file__).resolve().parent
+# 이 스크립트는 tools/ 안에 있고, 데이터와 정적 파일(src/)은 저장소 루트에 있다.
+ROOT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = ROOT_DIR / "data" / "scoresentation.db"
 DEFAULT_SETLIST_DB_PATH = ROOT_DIR / "data" / "setlists.db"
 MEDIA_DIR = ROOT_DIR / "data" / "media"

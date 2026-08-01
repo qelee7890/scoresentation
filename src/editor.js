@@ -3783,36 +3783,6 @@
             this.updateToolbarState();
             this.renderExportJson();
             this.setStatus("새 음표를 추가했습니다.");
-            return;
-
-            if (!hasNoteData(existing)) {
-                if (existing.pitch !== target.pitch) {
-                    existing.pitch = target.pitch;
-                    this.setStatus(`음높이를 ${target.pitch}(으)로 변경했습니다.`);
-                } else {
-                    existing.duration = this.cycleDuration(existing.duration, direction);
-                    this.normalizeNoteBeamState(existing);
-                }
-            } else {
-                lineNotes[target.charIndex] = {
-                    pitch: target.pitch,
-                    duration: target.duration
-                };
-            }
-
-            this.cleanupOrphanBeamGroups(slide);
-            this.commitSlideNotes(slide);
-            if (
-                this.selectedNoteTarget
-                && this.selectedNoteTarget.lineIndex === target.lineIndex
-                && this.selectedNoteTarget.charIndex === target.charIndex
-            ) {
-                this.selectedNoteTarget = null;
-                this.noteMenuMode = "main";
-            }
-            this.renderLine(target.lineIndex);
-            this.updateToolbarState();
-            this.renderExportJson();
         }
 
         toggleBeamSelection(target, appendMode = false) {
@@ -4256,82 +4226,15 @@
             return menuEl;
         }
 
+        // 구 개별 음표 메뉴 — 통합 메뉴(renderBeamContextMenu)로 대체됨.
+        // 현재 호출부는 없지만, 남아 있는 DOM 요소를 숨기는 용도로 남겨 둔다.
         renderNoteContextMenu() {
-            // 통합 메뉴(renderBeamContextMenu)로 대체됨 — 기존 메뉴는 항상 숨김
             const menuEl = this.getNoteMenuElement();
             if (!menuEl) {
                 return;
             }
-            {
-                menuEl.hidden = true;
-                menuEl.innerHTML = "";
-                return;
-            }
-
-            const lineEl = this.dom.canvas.querySelector(`.editor-line[data-line-index="${selectedNote.lineIndex}"]`);
-            const notationEl = lineEl ? lineEl.querySelector(".notation-container") : null;
-            const slideCard = this.dom.canvas.querySelector(".editor-slide-card");
-            if (!lineEl || !notationEl || !lineEl._layout || !slideCard) {
-                menuEl.hidden = true;
-                menuEl.innerHTML = "";
-                return;
-            }
-
-            const position = this.getNoteVisualPosition(lineEl._layout, this.getCurrentSlide(), selectedNote.charIndex, selectedNote.note.pitch, selectedNote.lineIndex);
-            const notationRect = notationEl.getBoundingClientRect();
-            const cardRect = slideCard.getBoundingClientRect();
-            const noteX = notationRect.left - cardRect.left + position.x;
-            const noteY = notationRect.top - cardRect.top + position.y;
-            const currentBaseDuration = getBaseDuration(selectedNote.note.duration);
-
-            menuEl.hidden = false;
-            menuEl.style.left = `${noteX}px`;
-            menuEl.style.top = `${noteY - 18}px`;
-
-            if (this.noteMenuMode === "duration") {
-                menuEl.innerHTML = `
-                    <span class="editor-note-menu-label">길이 변경</span>
-                    <div class="editor-note-duration-list">
-                        ${NOTE_LENGTH_OPTIONS.map((item) => `
-                            <button type="button" data-note-duration="${item.value}" class="${item.value === currentBaseDuration ? "is-current" : ""}">
-                                ${item.label}
-                            </button>
-                        `).join("")}
-                    </div>
-                    <button type="button" data-note-menu-action="back">닫기</button>
-                `;
-                return;
-            }
-
-            const dotted = selectedNote.note.duration.endsWith(".");
-            const acc = selectedNote.note.accidental || null;
-            const isSharp = acc === "sharp";
-            const isFlat = acc === "flat";
-            const isNatural = acc === "natural";
-
-            const slide = this.getCurrentSlide();
-            const lineNotes = (slide && slide.notes && slide.notes[selectedNote.lineIndex]) || [];
-            const prevNote = selectedNote.charIndex > 0 ? lineNotes[selectedNote.charIndex - 1] : null;
-            const canShiftLeft = selectedNote.charIndex > 0 && !hasNoteData(prevNote);
-
-            const keyAcc = this.getKeyAccidentalForPitch(selectedNote.note.pitch, slide ? slide.key : null);
-            const hasPriorNatural = this.hasPriorNaturalOnSamePitch(lineNotes, selectedNote.charIndex, selectedNote.note.pitch);
-            const sharpDisabled = keyAcc === "sharp" && !hasPriorNatural;
-            const flatDisabled = keyAcc === "flat" && !hasPriorNatural;
-            const naturalDisabled = keyAcc === null && !hasPriorNatural;
-
-            const dis = (cond) => cond ? "disabled" : "";
-
-            menuEl.innerHTML = `
-                <button type="button" data-note-menu-action="shift-left" ${dis(!canShiftLeft)} title="한 칸 당기기">&lt;</button>
-                <button type="button" data-note-menu-action="shift-right" title="한 칸 밀기">&gt;</button>
-                <button type="button" data-note-menu-action="length" title="길이 변경">♩</button>
-                <button type="button" data-note-menu-action="dot" class="${dotted ? "is-active" : ""}" title="${dotted ? "점 제거" : "점 추가"}">•</button>
-                <button type="button" data-note-menu-action="sharp" ${dis(sharpDisabled && !isSharp)} class="${isSharp ? "is-active" : ""}" title="${sharpDisabled ? "조표와 중복" : (isSharp ? "샵 제거" : "샵 추가")}">♯</button>
-                <button type="button" data-note-menu-action="flat" ${dis(flatDisabled && !isFlat)} class="${isFlat ? "is-active" : ""}" title="${flatDisabled ? "조표와 중복" : (isFlat ? "플랫 제거" : "플랫 추가")}">♭</button>
-                <button type="button" data-note-menu-action="natural" ${dis(naturalDisabled && !isNatural)} class="${isNatural ? "is-active" : ""}" title="${naturalDisabled ? "조표가 없는 음" : (isNatural ? "제자리표 제거" : "제자리표 추가")}">♮</button>
-                <button type="button" data-note-menu-action="delete" title="삭제">🗑</button>
-            `;
+            menuEl.hidden = true;
+            menuEl.innerHTML = "";
         }
 
         getKeyAccidentalForPitch(pitch, key) {

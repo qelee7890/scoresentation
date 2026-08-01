@@ -24,11 +24,13 @@ from pathlib import Path
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-ROOT_DIR = Path(__file__).resolve().parent
+# 이 스크립트는 tools/ 안에 있다. data/ 와 sample/ 은 저장소 루트, 브리지는 tools/ 에 있다.
+TOOLS_DIR = Path(__file__).resolve().parent
+ROOT_DIR = TOOLS_DIR.parent
 NWC_DIR = ROOT_DIR / 'sample' / 'nwc찬송'
 HYMNS_JSON = ROOT_DIR / 'hymns.json'
 DB_PATH = ROOT_DIR / 'data' / 'scoresentation.db'
-BRIDGE_SCRIPT = ROOT_DIR / 'nwc_bridge.mjs'
+BRIDGE_SCRIPT = TOOLS_DIR / 'nwc_bridge.mjs'
 
 
 # ── NWC bridge ───────────────────────────────────────

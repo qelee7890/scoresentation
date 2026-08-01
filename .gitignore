@@ -34,7 +34,6 @@ __pycache__/
 sample/
 .claude/
 nwc_bridge.js
-tools/sync-to-baseline.py
 node_modules/
 dist/
 out/
